@@ -6,7 +6,7 @@ import { search, getClub, positionNames, formatSEK, getLeague } from "@/lib/data
 import { tmSearchPlayers, tmSearchCoaches } from "@/lib/tm.functions";
 
 export const Route = createFileRoute("/sok")({
-  validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : "" }),
+  validateSearch: (s: Record<string, unknown>) => ({ q: typeof s["q"] === "string" ? s["q"] : "" }),
   head: () => ({
     meta: [
       { title: "Sök spelare och tränare – ScoutLab" },

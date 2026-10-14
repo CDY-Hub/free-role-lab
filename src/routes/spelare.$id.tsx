@@ -25,7 +25,7 @@ function PlayerPage() {
     (a, m) => ({ g: a.g + m.goals, a: a.a + m.assists, min: a.min + m.minutes, r: a.r + m.rating }),
     { g: 0, a: 0, min: 0, r: 0 },
   );
-  const sr = p.scoutReports[0];
+  const sr = p.scoutReports[0]!;
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">

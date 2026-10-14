@@ -20,7 +20,7 @@ function Index() {
     .map((p) => ({ p, avg: p.matches.reduce((s, m) => s + m.rating, 0) / p.matches.length }))
     .sort((a, b) => b.avg - a.avg)
     .slice(0, 8);
-  const talents = players.filter((p) => p.age <= 20 && p.scoutReports[0].potential >= 4).slice(0, 6);
+  const talents = players.filter((p) => p.age <= 20 && p.scoutReports[0]!.potential >= 4).slice(0, 6);
 
   return (
     <main className="mx-auto max-w-7xl px-4 pb-16">

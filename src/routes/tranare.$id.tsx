@@ -30,7 +30,7 @@ function CoachPage() {
       </header>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Matcher som tränare" value={total} />
-        <Stat label="Vinst% nuvarande klubb" value={`${c.career[0].winPct}%`} />
+        <Stat label="Vinst% nuvarande klubb" value={`${c.career[0]!.winPct}%`} />
         <Stat label="Formation" value={c.formation} />
         <Stat label="Titlar" value={c.trophies.length} />
       </div>
