@@ -10,33 +10,63 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SokRouteImport } from './routes/sok'
+import { Route as SpelareIdRouteImport } from './routes/spelare.$id'
+import { Route as TranareIdRouteImport } from './routes/tranare.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SokRoute = SokRouteImport.update({
+  id: '/sok',
+  path: '/sok',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SpelareIdRoute = SpelareIdRouteImport.update({
+  id: '/spelare/$id',
+  path: '/spelare/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TranareIdRoute = TranareIdRouteImport.update({
+  id: '/tranare/$id',
+  path: '/tranare/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/sok': typeof SokRoute
+  '/spelare/$id': typeof SpelareIdRoute
+  '/tranare/$id': typeof TranareIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/sok': typeof SokRoute
+  '/spelare/$id': typeof SpelareIdRoute
+  '/tranare/$id': typeof TranareIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/sok': typeof SokRoute
+  '/spelare/$id': typeof SpelareIdRoute
+  '/tranare/$id': typeof TranareIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/sok' | '/spelare/$id' | '/tranare/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/sok' | '/spelare/$id' | '/tranare/$id'
+  id: '__root__' | '/' | '/sok' | '/spelare/$id' | '/tranare/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SokRoute: typeof SokRoute
+  SpelareIdRoute: typeof SpelareIdRoute
+  TranareIdRoute: typeof TranareIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +78,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sok': {
+      id: '/sok'
+      path: '/sok'
+      fullPath: '/sok'
+      preLoaderRoute: typeof SokRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/spelare/$id': {
+      id: '/spelare/$id'
+      path: '/spelare/$id'
+      fullPath: '/spelare/$id'
+      preLoaderRoute: typeof SpelareIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tranare/$id': {
+      id: '/tranare/$id'
+      path: '/tranare/$id'
+      fullPath: '/tranare/$id'
+      preLoaderRoute: typeof TranareIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SokRoute: SokRoute,
+  SpelareIdRoute: SpelareIdRoute,
+  TranareIdRoute: TranareIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
