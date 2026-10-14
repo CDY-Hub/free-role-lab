@@ -11,7 +11,7 @@ Regler:
 - Om du är osäker på aktuella siffror (t.ex. nuvarande klubb eller marknadsvärde), säg det tydligt.`;
 
 export async function handleChat(request: Request) {
-  const apiKey = process.env.LOVABLE_API_KEY;
+  const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) return Response.json({ error: "AI är inte konfigurerat." }, { status: 500 });
 
   let messages: UIMessage[];
