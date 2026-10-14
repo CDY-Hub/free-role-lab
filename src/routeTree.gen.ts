@@ -11,8 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SokRouteImport } from './routes/sok'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ChatIndexRouteImport } from './routes/chat.index'
+import { Route as ChatThreadIdRouteImport } from './routes/chat.$threadId'
 import { Route as SpelareIdRouteImport } from './routes/spelare.$id'
 import { Route as TranareIdRouteImport } from './routes/tranare.$id'
+import { Route as ProffsSpelareIdRouteImport } from './routes/proffs.spelare.$id'
+import { Route as ProffsTranareIdRouteImport } from './routes/proffs.tranare.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,6 +27,21 @@ const IndexRoute = IndexRouteImport.update({
 const SokRoute = SokRouteImport.update({
   id: '/sok',
   path: '/sok',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatIndexRoute = ChatIndexRouteImport.update({
+  id: '/chat/',
+  path: '/chat/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatThreadIdRoute = ChatThreadIdRouteImport.update({
+  id: '/chat/$threadId',
+  path: '/chat/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SpelareIdRoute = SpelareIdRouteImport.update({
@@ -34,39 +54,97 @@ const TranareIdRoute = TranareIdRouteImport.update({
   path: '/tranare/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProffsSpelareIdRoute = ProffsSpelareIdRouteImport.update({
+  id: '/proffs/spelare/$id',
+  path: '/proffs/spelare/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProffsTranareIdRoute = ProffsTranareIdRouteImport.update({
+  id: '/proffs/tranare/$id',
+  path: '/proffs/tranare/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/sok': typeof SokRoute
+  '/api/chat': typeof ApiChatRoute
+  '/chat/$threadId': typeof ChatThreadIdRoute
   '/spelare/$id': typeof SpelareIdRoute
   '/tranare/$id': typeof TranareIdRoute
+  '/chat/': typeof ChatIndexRoute
+  '/proffs/spelare/$id': typeof ProffsSpelareIdRoute
+  '/proffs/tranare/$id': typeof ProffsTranareIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/sok': typeof SokRoute
+  '/api/chat': typeof ApiChatRoute
+  '/chat/$threadId': typeof ChatThreadIdRoute
   '/spelare/$id': typeof SpelareIdRoute
   '/tranare/$id': typeof TranareIdRoute
+  '/chat': typeof ChatIndexRoute
+  '/proffs/spelare/$id': typeof ProffsSpelareIdRoute
+  '/proffs/tranare/$id': typeof ProffsTranareIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/sok': typeof SokRoute
+  '/api/chat': typeof ApiChatRoute
+  '/chat/$threadId': typeof ChatThreadIdRoute
   '/spelare/$id': typeof SpelareIdRoute
   '/tranare/$id': typeof TranareIdRoute
+  '/chat/': typeof ChatIndexRoute
+  '/proffs/spelare/$id': typeof ProffsSpelareIdRoute
+  '/proffs/tranare/$id': typeof ProffsTranareIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sok' | '/spelare/$id' | '/tranare/$id'
+  fullPaths:
+    | '/'
+    | '/sok'
+    | '/api/chat'
+    | '/chat/$threadId'
+    | '/spelare/$id'
+    | '/tranare/$id'
+    | '/chat/'
+    | '/proffs/spelare/$id'
+    | '/proffs/tranare/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/sok' | '/spelare/$id' | '/tranare/$id'
-  id: '__root__' | '/' | '/sok' | '/spelare/$id' | '/tranare/$id'
+  to:
+    | '/'
+    | '/sok'
+    | '/api/chat'
+    | '/chat/$threadId'
+    | '/spelare/$id'
+    | '/tranare/$id'
+    | '/chat'
+    | '/proffs/spelare/$id'
+    | '/proffs/tranare/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/sok'
+    | '/api/chat'
+    | '/chat/$threadId'
+    | '/spelare/$id'
+    | '/tranare/$id'
+    | '/chat/'
+    | '/proffs/spelare/$id'
+    | '/proffs/tranare/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SokRoute: typeof SokRoute
+  ApiChatRoute: typeof ApiChatRoute
+  ChatThreadIdRoute: typeof ChatThreadIdRoute
   SpelareIdRoute: typeof SpelareIdRoute
   TranareIdRoute: typeof TranareIdRoute
+  ChatIndexRoute: typeof ChatIndexRoute
+  ProffsSpelareIdRoute: typeof ProffsSpelareIdRoute
+  ProffsTranareIdRoute: typeof ProffsTranareIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -85,6 +163,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SokRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat/': {
+      id: '/chat/'
+      path: '/chat'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof ChatIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat/$threadId': {
+      id: '/chat/$threadId'
+      path: '/chat/$threadId'
+      fullPath: '/chat/$threadId'
+      preLoaderRoute: typeof ChatThreadIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/spelare/$id': {
       id: '/spelare/$id'
       path: '/spelare/$id'
@@ -99,14 +198,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TranareIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/proffs/spelare/$id': {
+      id: '/proffs/spelare/$id'
+      path: '/proffs/spelare/$id'
+      fullPath: '/proffs/spelare/$id'
+      preLoaderRoute: typeof ProffsSpelareIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/proffs/tranare/$id': {
+      id: '/proffs/tranare/$id'
+      path: '/proffs/tranare/$id'
+      fullPath: '/proffs/tranare/$id'
+      preLoaderRoute: typeof ProffsTranareIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SokRoute: SokRoute,
+  ApiChatRoute: ApiChatRoute,
+  ChatThreadIdRoute: ChatThreadIdRoute,
   SpelareIdRoute: SpelareIdRoute,
   TranareIdRoute: TranareIdRoute,
+  ChatIndexRoute: ChatIndexRoute,
+  ProffsSpelareIdRoute: ProffsSpelareIdRoute,
+  ProffsTranareIdRoute: ProffsTranareIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
