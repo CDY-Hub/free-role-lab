@@ -32,7 +32,8 @@ function ProPlayer() {
   });
   const transfers = useQuery({ queryKey: ["tm-t", id], queryFn: () => tmPlayerTransfers({ data: id }), enabled: !stats.isLoading && !matches.isLoading, staleTime: 600_000 });
 
-  const played = (matches.data ?? []).filter((m: any) => m.participation === "played");
+  const activeMatches = season === null ? matches : seasonMatches;
+  const played = (activeMatches.data ?? []).filter((m: any) => m.participation === "played");
   const sum = (k: string) => played.reduce((s: number, m: any) => s + (m[k] ?? 0), 0);
 
   const bySeason: Record<string, any> = {};
