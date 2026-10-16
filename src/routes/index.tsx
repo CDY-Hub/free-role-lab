@@ -1,7 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueries } from "@tanstack/react-query";
 import { SearchBox } from "@/components/site-header";
 import { Section, RatingPill } from "@/components/ui-bits";
-import { leagues, todaysMatches, players, getClub, formatSEK, positionNames, coaches } from "@/lib/data";
+import { players, getClub, formatSEK, positionNames, coaches } from "@/lib/data";
+import { tmCompetitionTable } from "@/lib/tm.functions";
+
+const REAL_LEAGUES = [
+  { id: "SE1", name: "Allsvenskan", country: "Sverige" },
+  { id: "SE2", name: "Superettan", country: "Sverige" },
+  { id: "GB1", name: "Premier League", country: "England" },
+  { id: "ES1", name: "La Liga", country: "Spanien" },
+  { id: "L1", name: "Bundesliga", country: "Tyskland" },
+  { id: "IT1", name: "Serie A", country: "Italien" },
+];
 
 export const Route = createFileRoute("/")({
   head: () => ({
