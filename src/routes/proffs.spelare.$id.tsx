@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Section, Stat, InfoRow, Badge2 } from "@/components/ui-bits";
-import { tmPlayerProfile, tmPlayerMatches, tmPlayerStats, tmPlayerTransfers } from "@/lib/tm.functions";
+import { tmPlayerProfile, tmPlayerMatches, tmPlayerMatchesSeason, tmPlayerStats, tmPlayerTransfers } from "@/lib/tm.functions";
 
 export const Route = createFileRoute("/proffs/spelare/$id")({
   loader: ({ params }) => tmPlayerProfile({ data: params.id }),
@@ -20,11 +21,19 @@ const eur = (v?: number | null) => (v ? (v >= 1e6 ? `€${(v / 1e6).toFixed(1)}m
 function ProPlayer() {
   const p = Route.useLoaderData();
   const { id } = Route.useParams();
+  const [season, setSeason] = useState<string | null>(null);
   const matches = useQuery({ queryKey: ["tm-m", id], queryFn: () => tmPlayerMatches({ data: id }), staleTime: 600_000 });
   const stats = useQuery({ queryKey: ["tm-s", id], queryFn: () => tmPlayerStats({ data: id }), enabled: !matches.isLoading, staleTime: 600_000 });
+  const seasonMatches = useQuery({
+    queryKey: ["tm-ms", id, season],
+    queryFn: () => tmPlayerMatchesSeason({ data: { playerId: id, seasonId: season! } }),
+    enabled: season !== null,
+    staleTime: 3600_000,
+  });
   const transfers = useQuery({ queryKey: ["tm-t", id], queryFn: () => tmPlayerTransfers({ data: id }), enabled: !stats.isLoading && !matches.isLoading, staleTime: 600_000 });
 
-  const played = (matches.data ?? []).filter((m: any) => m.participation === "played");
+  const activeMatches = season === null ? matches : seasonMatches;
+  const played = (activeMatches.data ?? []).filter((m: any) => m.participation === "played");
   const sum = (k: string) => played.reduce((s: number, m: any) => s + (m[k] ?? 0), 0);
 
   const bySeason: Record<string, any> = {};
@@ -39,6 +48,7 @@ function ProPlayer() {
     bySeason[k].r += s.redCards ?? 0;
   }
   const seasons = Object.values(bySeason).sort((a: any, b: any) => b.season.localeCompare(a.season));
+  const seasonIds = seasons.map((s: any) => s.season);
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
@@ -66,14 +76,31 @@ function ProPlayer() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Section title="Senaste matcherna">
-            {matches.isLoading && <p className="text-sm text-muted-foreground">Hämtar matcher…</p>}
-            {matches.error && <p className="text-sm text-destructive">{(matches.error as Error).message}</p>}
+          <Section
+            title={season === null ? "Senaste matcherna" : `Matcher säsong ${season}`}
+            right={
+              <select
+                value={season ?? ""}
+                onChange={(e) => setSeason(e.target.value || null)}
+                className="rounded-md border bg-background px-2 py-1 text-xs"
+              >
+                <option value="">Aktuell säsong</option>
+                {seasonIds.map((s: string) => (
+                  <option key={s} value={s}>Säsong {s}</option>
+                ))}
+              </select>
+            }
+          >
+            {activeMatches.isLoading && <p className="text-sm text-muted-foreground">Hämtar matcher…</p>}
+            {activeMatches.error && <p className="text-sm text-destructive">{(activeMatches.error as Error).message}</p>}
+            {!activeMatches.isLoading && (activeMatches.data ?? []).length === 0 && (
+              <p className="text-sm text-muted-foreground">Inga matcher registrerade denna säsong.</p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-left text-xs uppercase text-muted-foreground"><tr><th className="py-2">Datum</th><th>Match</th><th>Res.</th><th>Min</th><th>M</th><th>A</th><th>Skott</th><th>Pass</th><th>Tackl.</th><th>Kort</th></tr></thead>
                 <tbody className="divide-y">
-                  {(matches.data ?? []).slice(0, 20).map((m: any) => (
+                  {(activeMatches.data ?? []).slice(0, 40).map((m: any) => (
                     <tr key={m.gameId} className={m.participation !== "played" ? "text-muted-foreground" : ""}>
                       <td className="py-2">{m.date?.slice(0, 10)}</td>
                       <td className="max-w-56 truncate"><span className="text-xs text-muted-foreground">{m.competition?.name}</span><br />{m.venue === "home" ? "vs" : "@"} {m.opponent?.name}</td>

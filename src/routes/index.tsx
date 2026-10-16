@@ -1,7 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueries } from "@tanstack/react-query";
 import { SearchBox } from "@/components/site-header";
 import { Section, RatingPill } from "@/components/ui-bits";
-import { leagues, todaysMatches, players, getClub, formatSEK, positionNames, coaches } from "@/lib/data";
+import { players, getClub, formatSEK, positionNames, coaches } from "@/lib/data";
+import { tmCompetitionTable } from "@/lib/tm.functions";
+
+const REAL_LEAGUES = [
+  { id: "SE1", name: "Allsvenskan", country: "Sverige" },
+  { id: "SE2", name: "Superettan", country: "Sverige" },
+  { id: "GB1", name: "Premier League", country: "England" },
+  { id: "ES1", name: "La Liga", country: "Spanien" },
+  { id: "L1", name: "Bundesliga", country: "Tyskland" },
+  { id: "IT1", name: "Serie A", country: "Italien" },
+];
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -16,6 +27,13 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const tables = useQueries({
+    queries: REAL_LEAGUES.map((l) => ({
+      queryKey: ["tm-table", l.id],
+      queryFn: () => tmCompetitionTable({ data: l.id }),
+      staleTime: 3600_000,
+    })),
+  });
   const top = [...players]
     .map((p) => ({ p, avg: p.matches.reduce((s, m) => s + m.rating, 0) / p.matches.length }))
     .sort((a, b) => b.avg - a.avg)
@@ -41,26 +59,35 @@ function Index() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <Section title="Dagens matcher">
-            <div className="space-y-5">
-              {leagues.map((l) => {
-                const ms = todaysMatches.filter((m) => m.leagueId === l.id);
-                if (!ms.length) return null;
+          <Section title="Tabeller – uppdateras löpande" right={<span className="text-xs text-muted-foreground">Källa: Transfermarkt</span>}>
+            <div className="space-y-6">
+              {REAL_LEAGUES.map((l, i) => {
+                const q = tables[i];
+                const rows: any[] = q?.data?.[0]?.rows ?? [];
                 return (
                   <div key={l.id}>
                     <div className="mb-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{l.country} · {l.name}</div>
-                    <div className="divide-y rounded-lg border">
-                      {ms.map((m) => (
-                        <div key={m.id} className="grid grid-cols-[3.5rem_1fr_auto_1fr] items-center gap-3 px-3 py-2 text-sm">
-                          <span className={`text-xs font-bold ${m.minute.includes("'") ? "text-primary" : "text-muted-foreground"}`}>{m.minute}</span>
-                          <span className="truncate text-right">{m.home}</span>
-                          <span className="rounded bg-ink px-2 py-0.5 font-display font-bold text-ink-foreground">
-                            {m.minute.includes(":") ? "–" : `${m.sh} - ${m.sa}`}
-                          </span>
-                          <span className="truncate">{m.away}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {q?.isLoading && <p className="text-sm text-muted-foreground">Hämtar tabell…</p>}
+                    {q?.error && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}
+                    {rows.length > 0 && (
+                      <table className="w-full text-sm">
+                        <thead className="text-left text-xs uppercase text-muted-foreground">
+                          <tr><th className="py-1 pr-2">#</th><th>Klubb</th><th className="text-center">M</th><th className="text-center">V-O-F</th><th className="text-center">GM–IM</th><th className="text-right">P</th></tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {rows.map((r: any) => (
+                            <tr key={r.clubId}>
+                              <td className="py-1.5 pr-2 font-display font-bold text-muted-foreground">{r.position}</td>
+                              <td className="max-w-40 truncate font-semibold">{r.clubName}</td>
+                              <td className="text-center">{r.matches}</td>
+                              <td className="text-center">{r.wins}-{r.draws}-{r.losses}</td>
+                              <td className="text-center">{r.goalsFor}–{r.goalsAgainst}</td>
+                              <td className="text-right font-bold text-primary">{r.points}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 );
               })}
