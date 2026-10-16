@@ -76,9 +76,26 @@ function ProPlayer() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Section title="Senaste matcherna">
-            {matches.isLoading && <p className="text-sm text-muted-foreground">Hämtar matcher…</p>}
-            {matches.error && <p className="text-sm text-destructive">{(matches.error as Error).message}</p>}
+          <Section
+            title={season === null ? "Senaste matcherna" : `Matcher säsong ${season}`}
+            right={
+              <select
+                value={season ?? ""}
+                onChange={(e) => setSeason(e.target.value || null)}
+                className="rounded-md border bg-background px-2 py-1 text-xs"
+              >
+                <option value="">Aktuell säsong</option>
+                {seasonIds.map((s: string) => (
+                  <option key={s} value={s}>Säsong {s}</option>
+                ))}
+              </select>
+            }
+          >
+            {activeMatches.isLoading && <p className="text-sm text-muted-foreground">Hämtar matcher…</p>}
+            {activeMatches.error && <p className="text-sm text-destructive">{(activeMatches.error as Error).message}</p>}
+            {!activeMatches.isLoading && (activeMatches.data ?? []).length === 0 && (
+              <p className="text-sm text-muted-foreground">Inga matcher registrerade denna säsong.</p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-left text-xs uppercase text-muted-foreground"><tr><th className="py-2">Datum</th><th>Match</th><th>Res.</th><th>Min</th><th>M</th><th>A</th><th>Skott</th><th>Pass</th><th>Tackl.</th><th>Kort</th></tr></thead>
