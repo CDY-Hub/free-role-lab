@@ -21,8 +21,15 @@ const eur = (v?: number | null) => (v ? (v >= 1e6 ? `€${(v / 1e6).toFixed(1)}m
 function ProPlayer() {
   const p = Route.useLoaderData();
   const { id } = Route.useParams();
+  const [season, setSeason] = useState<string | null>(null);
   const matches = useQuery({ queryKey: ["tm-m", id], queryFn: () => tmPlayerMatches({ data: id }), staleTime: 600_000 });
   const stats = useQuery({ queryKey: ["tm-s", id], queryFn: () => tmPlayerStats({ data: id }), enabled: !matches.isLoading, staleTime: 600_000 });
+  const seasonMatches = useQuery({
+    queryKey: ["tm-ms", id, season],
+    queryFn: () => tmPlayerMatchesSeason({ data: { playerId: id, seasonId: season! } }),
+    enabled: season !== null,
+    staleTime: 3600_000,
+  });
   const transfers = useQuery({ queryKey: ["tm-t", id], queryFn: () => tmPlayerTransfers({ data: id }), enabled: !stats.isLoading && !matches.isLoading, staleTime: 600_000 });
 
   const played = (matches.data ?? []).filter((m: any) => m.participation === "played");
