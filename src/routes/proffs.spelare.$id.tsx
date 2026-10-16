@@ -100,7 +100,7 @@ function ProPlayer() {
               <table className="w-full text-sm">
                 <thead className="text-left text-xs uppercase text-muted-foreground"><tr><th className="py-2">Datum</th><th>Match</th><th>Res.</th><th>Min</th><th>M</th><th>A</th><th>Skott</th><th>Pass</th><th>Tackl.</th><th>Kort</th></tr></thead>
                 <tbody className="divide-y">
-                  {(matches.data ?? []).slice(0, 20).map((m: any) => (
+                  {(activeMatches.data ?? []).slice(0, 40).map((m: any) => (
                     <tr key={m.gameId} className={m.participation !== "played" ? "text-muted-foreground" : ""}>
                       <td className="py-2">{m.date?.slice(0, 10)}</td>
                       <td className="max-w-56 truncate"><span className="text-xs text-muted-foreground">{m.competition?.name}</span><br />{m.venue === "home" ? "vs" : "@"} {m.opponent?.name}</td>
