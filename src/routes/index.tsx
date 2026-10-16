@@ -27,6 +27,13 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const tables = useQueries({
+    queries: REAL_LEAGUES.map((l) => ({
+      queryKey: ["tm-table", l.id],
+      queryFn: () => tmCompetitionTable({ data: l.id }),
+      staleTime: 3600_000,
+    })),
+  });
   const top = [...players]
     .map((p) => ({ p, avg: p.matches.reduce((s, m) => s + m.rating, 0) / p.matches.length }))
     .sort((a, b) => b.avg - a.avg)
