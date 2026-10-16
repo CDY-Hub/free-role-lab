@@ -48,6 +48,7 @@ function ProPlayer() {
     bySeason[k].r += s.redCards ?? 0;
   }
   const seasons = Object.values(bySeason).sort((a: any, b: any) => b.season.localeCompare(a.season));
+  const seasonIds = seasons.map((s: any) => s.season);
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
