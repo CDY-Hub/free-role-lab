@@ -54,6 +54,73 @@ export const tmCoachProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
   .handler(async ({ data }) => tm<any>(`/coaches/${data}/profile`));
 
+export const tmClubProfile = createServerFn({ method: "GET" })
+  .inputValidator(id)
+  .handler(async ({ data }) => tm<any>(`/clubs/${data}/profile`));
+
+const ids = (d: unknown) => {
+  if (!Array.isArray(d) || d.length === 0 || d.length > 20 || !d.every((x) => typeof x === "string" && /^\d+$/.test(x)))
+    throw new Error("Ogiltiga id:n");
+  return d as string[];
+};
+
+export const tmPlayersBatch = createServerFn({ method: "GET" })
+  .inputValidator(ids)
+  .handler(async ({ data }) => {
+    const out: any[] = [];
+    for (const pid of data) {
+      try {
+        const p = await tm<any>(`/players/${pid}/profile`);
+        out.push({
+          id: p.id, name: p.name, imageUrl: p.imageUrl, age: p.age,
+          citizenship: p.citizenship, marketValue: p.marketValue,
+          position: p.position?.main, club: p.club ? { name: p.club.name, id: p.club.id } : null,
+        });
+      } catch { /* hoppa över spelare som inte går att hämta */ }
+    }
+    return out;
+  });
+
+export const tmClubsBatch = createServerFn({ method: "GET" })
+  .inputValidator(ids)
+  .handler(async ({ data }) => {
+    const out: any[] = [];
+    for (const cid of data) {
+      try {
+        const c = await tm<any>(`/clubs/${cid}/profile`);
+        out.push({
+          id: c.id, name: c.name, image: c.image, currentMarketValue: c.currentMarketValue,
+          squadSize: c.squad?.size, league: c.league ? { name: c.league.name, country: c.league.countryName } : null,
+        });
+      } catch { /* hoppa över */ }
+    }
+    return out;
+  });
+
+const wikiTitle = (d: unknown) => {
+  if (typeof d !== "string" || !d.trim() || d.length > 150 || !/^[\w ()%,.'\-–]+$/u.test(d.trim())) throw new Error("Ogiltig artikel");
+  return d.trim();
+};
+
+export const wikiPage = createServerFn({ method: "GET" })
+  .inputValidator(wikiTitle)
+  .handler(async ({ data }) => {
+    const res = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(data)}&prop=text|displaytitle&format=json&formatversion=2&redirects=1`,
+      { headers: { "User-Agent": "FreeRoleLab/1.0 (fotbollsstatistik)", accept: "application/json" } },
+    );
+    const body: any = await res.json().catch(() => null);
+    if (!res.ok || !body?.parse?.text) throw new Error("Kunde inte hämta artikeln från Wikipedia.");
+    let html: string = body.parse.text;
+    html = html
+      .replace(/href="\/wiki\//g, 'href="https://en.wikipedia.org/wiki/')
+      .replace(/href="\/w\//g, 'href="https://en.wikipedia.org/w/')
+      .replace(/<a href="https:\/\/en\.wikipedia\.org/g, '<a target="_blank" rel="noopener" href="https://en.wikipedia.org')
+      .replace(/src="\/\//g, 'src="https://')
+      .replace(/srcset="\/\//g, 'srcset="https://');
+    return { title: body.parse.title as string, html };
+  });
+
 const comp = (d: unknown) => {
   if (typeof d !== "string" || !/^[A-Z0-9]{2,6}$/.test(d)) throw new Error("Ogiltig serie");
   return d;
