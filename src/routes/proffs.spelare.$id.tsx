@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Section, Stat, InfoRow, Badge2 } from "@/components/ui-bits";
-import { tmPlayerProfile, tmPlayerMatches, tmPlayerStats, tmPlayerTransfers } from "@/lib/tm.functions";
+import { tmPlayerProfile, tmPlayerMatches, tmPlayerMatchesSeason, tmPlayerStats, tmPlayerTransfers } from "@/lib/tm.functions";
 
 export const Route = createFileRoute("/proffs/spelare/$id")({
   loader: ({ params }) => tmPlayerProfile({ data: params.id }),
