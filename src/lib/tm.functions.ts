@@ -53,3 +53,20 @@ export const tmPlayerMatches = createServerFn({ method: "GET" })
 export const tmCoachProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
   .handler(async ({ data }) => tm<any>(`/coaches/${data}/profile`));
+
+const comp = (d: unknown) => {
+  if (typeof d !== "string" || !/^[A-Z0-9]{2,6}$/.test(d)) throw new Error("Ogiltig serie");
+  return d;
+};
+
+export const tmCompetitionTable = createServerFn({ method: "GET" })
+  .inputValidator(comp)
+  .handler(async ({ data }) => (await tm<any>(`/competitions/${data}/table`)).tables ?? []);
+
+export const tmPlayerMatchesSeason = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => {
+    if (typeof d !== "object" || d === null) throw new Error("Ogiltig sökning");
+    const { playerId, seasonId } = d as Record<string, unknown>;
+    return { playerId: id(playerId), seasonId: id(seasonId) };
+  })
+  .handler(async ({ data }) => (await tm<any>(`/players/${data.playerId}/matches?season_id=${data.seasonId}`)).matches ?? []);
