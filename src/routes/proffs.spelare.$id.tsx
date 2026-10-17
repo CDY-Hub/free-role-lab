@@ -7,7 +7,7 @@ import { tmPlayerProfile, tmPlayerMatches, tmPlayerMatchesSeason, tmPlayerStats,
 export const Route = createFileRoute("/proffs/spelare/$id")({
   loader: ({ params }) => tmPlayerProfile({ data: params.id }),
   head: ({ loaderData }) => {
-    const t = loaderData?.name ? `${loaderData.name} – spelarprofil | ScoutLab` : "Spelare | ScoutLab";
+    const t = loaderData?.name ? `${loaderData.name} – spelarprofil | Free Role Lab` : "Spelare | Free Role Lab";
     const d = loaderData?.name ? `Matcher, statistik, övergångar och marknadsvärde för ${loaderData.name}.` : "Spelarprofil";
     const meta: any[] = [{ title: t }, { name: "description", content: d }, { property: "og:title", content: t }, { property: "og:description", content: d }];
     if (loaderData?.imageUrl?.startsWith("https://")) meta.push({ property: "og:image", content: loaderData.imageUrl }, { name: "twitter:image", content: loaderData.imageUrl });

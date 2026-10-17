@@ -11,11 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SokRouteImport } from './routes/sok'
+import { Route as TabellerRouteImport } from './routes/tabeller'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatThreadIdRouteImport } from './routes/chat.$threadId'
-import { Route as SpelareIdRouteImport } from './routes/spelare.$id'
-import { Route as TranareIdRouteImport } from './routes/tranare.$id'
+import { Route as FifaIndexRouteImport } from './routes/fifa.index'
+import { Route as UefaIndexRouteImport } from './routes/uefa.index'
+import { Route as UefaSlugRouteImport } from './routes/uefa.$slug'
+import { Route as FifaVmYearRouteImport } from './routes/fifa.vm.$year'
 import { Route as ProffsSpelareIdRouteImport } from './routes/proffs.spelare.$id'
 import { Route as ProffsTranareIdRouteImport } from './routes/proffs.tranare.$id'
 
@@ -27,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
 const SokRoute = SokRouteImport.update({
   id: '/sok',
   path: '/sok',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TabellerRoute = TabellerRouteImport.update({
+  id: '/tabeller',
+  path: '/tabeller',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -44,14 +52,24 @@ const ChatThreadIdRoute = ChatThreadIdRouteImport.update({
   path: '/chat/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SpelareIdRoute = SpelareIdRouteImport.update({
-  id: '/spelare/$id',
-  path: '/spelare/$id',
+const FifaIndexRoute = FifaIndexRouteImport.update({
+  id: '/fifa/',
+  path: '/fifa/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TranareIdRoute = TranareIdRouteImport.update({
-  id: '/tranare/$id',
-  path: '/tranare/$id',
+const UefaIndexRoute = UefaIndexRouteImport.update({
+  id: '/uefa/',
+  path: '/uefa/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UefaSlugRoute = UefaSlugRouteImport.update({
+  id: '/uefa/$slug',
+  path: '/uefa/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FifaVmYearRoute = FifaVmYearRouteImport.update({
+  id: '/fifa/vm/$year',
+  path: '/fifa/vm/$year',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProffsSpelareIdRoute = ProffsSpelareIdRouteImport.update({
@@ -68,22 +86,28 @@ const ProffsTranareIdRoute = ProffsTranareIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/sok': typeof SokRoute
+  '/tabeller': typeof TabellerRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
-  '/spelare/$id': typeof SpelareIdRoute
-  '/tranare/$id': typeof TranareIdRoute
+  '/uefa/$slug': typeof UefaSlugRoute
   '/chat/': typeof ChatIndexRoute
+  '/fifa/': typeof FifaIndexRoute
+  '/uefa/': typeof UefaIndexRoute
+  '/fifa/vm/$year': typeof FifaVmYearRoute
   '/proffs/spelare/$id': typeof ProffsSpelareIdRoute
   '/proffs/tranare/$id': typeof ProffsTranareIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/sok': typeof SokRoute
+  '/tabeller': typeof TabellerRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
-  '/spelare/$id': typeof SpelareIdRoute
-  '/tranare/$id': typeof TranareIdRoute
+  '/uefa/$slug': typeof UefaSlugRoute
   '/chat': typeof ChatIndexRoute
+  '/fifa': typeof FifaIndexRoute
+  '/uefa': typeof UefaIndexRoute
+  '/fifa/vm/$year': typeof FifaVmYearRoute
   '/proffs/spelare/$id': typeof ProffsSpelareIdRoute
   '/proffs/tranare/$id': typeof ProffsTranareIdRoute
 }
@@ -91,11 +115,14 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/sok': typeof SokRoute
+  '/tabeller': typeof TabellerRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
-  '/spelare/$id': typeof SpelareIdRoute
-  '/tranare/$id': typeof TranareIdRoute
+  '/uefa/$slug': typeof UefaSlugRoute
   '/chat/': typeof ChatIndexRoute
+  '/fifa/': typeof FifaIndexRoute
+  '/uefa/': typeof UefaIndexRoute
+  '/fifa/vm/$year': typeof FifaVmYearRoute
   '/proffs/spelare/$id': typeof ProffsSpelareIdRoute
   '/proffs/tranare/$id': typeof ProffsTranareIdRoute
 }
@@ -104,33 +131,42 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/sok'
+    | '/tabeller'
     | '/api/chat'
     | '/chat/$threadId'
-    | '/spelare/$id'
-    | '/tranare/$id'
+    | '/uefa/$slug'
     | '/chat/'
+    | '/fifa/'
+    | '/uefa/'
+    | '/fifa/vm/$year'
     | '/proffs/spelare/$id'
     | '/proffs/tranare/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/sok'
+    | '/tabeller'
     | '/api/chat'
     | '/chat/$threadId'
-    | '/spelare/$id'
-    | '/tranare/$id'
+    | '/uefa/$slug'
     | '/chat'
+    | '/fifa'
+    | '/uefa'
+    | '/fifa/vm/$year'
     | '/proffs/spelare/$id'
     | '/proffs/tranare/$id'
   id:
     | '__root__'
     | '/'
     | '/sok'
+    | '/tabeller'
     | '/api/chat'
     | '/chat/$threadId'
-    | '/spelare/$id'
-    | '/tranare/$id'
+    | '/uefa/$slug'
     | '/chat/'
+    | '/fifa/'
+    | '/uefa/'
+    | '/fifa/vm/$year'
     | '/proffs/spelare/$id'
     | '/proffs/tranare/$id'
   fileRoutesById: FileRoutesById
@@ -138,11 +174,14 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SokRoute: typeof SokRoute
+  TabellerRoute: typeof TabellerRoute
   ApiChatRoute: typeof ApiChatRoute
   ChatThreadIdRoute: typeof ChatThreadIdRoute
-  SpelareIdRoute: typeof SpelareIdRoute
-  TranareIdRoute: typeof TranareIdRoute
+  UefaSlugRoute: typeof UefaSlugRoute
   ChatIndexRoute: typeof ChatIndexRoute
+  FifaIndexRoute: typeof FifaIndexRoute
+  UefaIndexRoute: typeof UefaIndexRoute
+  FifaVmYearRoute: typeof FifaVmYearRoute
   ProffsSpelareIdRoute: typeof ProffsSpelareIdRoute
   ProffsTranareIdRoute: typeof ProffsTranareIdRoute
 }
@@ -161,6 +200,13 @@ declare module '@tanstack/react-router' {
       path: '/sok'
       fullPath: '/sok'
       preLoaderRoute: typeof SokRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tabeller': {
+      id: '/tabeller'
+      path: '/tabeller'
+      fullPath: '/tabeller'
+      preLoaderRoute: typeof TabellerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -184,18 +230,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/spelare/$id': {
-      id: '/spelare/$id'
-      path: '/spelare/$id'
-      fullPath: '/spelare/$id'
-      preLoaderRoute: typeof SpelareIdRouteImport
+    '/fifa/': {
+      id: '/fifa/'
+      path: '/fifa'
+      fullPath: '/fifa/'
+      preLoaderRoute: typeof FifaIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tranare/$id': {
-      id: '/tranare/$id'
-      path: '/tranare/$id'
-      fullPath: '/tranare/$id'
-      preLoaderRoute: typeof TranareIdRouteImport
+    '/uefa/': {
+      id: '/uefa/'
+      path: '/uefa'
+      fullPath: '/uefa/'
+      preLoaderRoute: typeof UefaIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/uefa/$slug': {
+      id: '/uefa/$slug'
+      path: '/uefa/$slug'
+      fullPath: '/uefa/$slug'
+      preLoaderRoute: typeof UefaSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fifa/vm/$year': {
+      id: '/fifa/vm/$year'
+      path: '/fifa/vm/$year'
+      fullPath: '/fifa/vm/$year'
+      preLoaderRoute: typeof FifaVmYearRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/proffs/spelare/$id': {
@@ -218,11 +278,14 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SokRoute: SokRoute,
+  TabellerRoute: TabellerRoute,
   ApiChatRoute: ApiChatRoute,
   ChatThreadIdRoute: ChatThreadIdRoute,
-  SpelareIdRoute: SpelareIdRoute,
-  TranareIdRoute: TranareIdRoute,
+  UefaSlugRoute: UefaSlugRoute,
   ChatIndexRoute: ChatIndexRoute,
+  FifaIndexRoute: FifaIndexRoute,
+  UefaIndexRoute: UefaIndexRoute,
+  FifaVmYearRoute: FifaVmYearRoute,
   ProffsSpelareIdRoute: ProffsSpelareIdRoute,
   ProffsTranareIdRoute: ProffsTranareIdRoute,
 }

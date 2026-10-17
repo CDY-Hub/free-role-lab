@@ -35,7 +35,7 @@ export function SearchBox({ initial = "", big = false }: { initial?: string; big
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Sök spelare, tränare eller klubb – från Premier League till division 3"
+        placeholder="Sök spelare, tränare eller liga"
         className="w-full bg-transparent outline-none placeholder:text-muted-foreground"
         aria-label="Sök"
       />
@@ -48,10 +48,18 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4">
+        <nav className="flex items-center gap-1">
+          <Button variant="ghost" asChild>
+            <Link to="/fifa">FIFA</Link>
+          </Button>
+          <Button variant="ghost" asChild>
+            <Link to="/uefa">UEFA</Link>
+          </Button>
+        </nav>
         <Link to="/" className="flex items-center gap-2">
           <img src={logo} alt="" width={32} height={32} className="size-8" />
           <span className="font-display text-2xl font-extrabold">
-            Scout<span className="text-primary">Lab</span>
+            Free Role <span className="text-primary">Lab</span>
           </span>
         </Link>
         <div className="hidden flex-1 md:block">

@@ -5,9 +5,9 @@ import { loadThreads, newId } from "@/lib/threads";
 export const Route = createFileRoute("/chat/")({
   head: () => ({
     meta: [
-      { title: "AI-chatt om fotboll – ScoutLab" },
+      { title: "AI-chatt om fotboll – Free Role Lab" },
       { name: "description", content: "Fråga vad som helst om fotboll." },
-      { property: "og:title", content: "AI-chatt om fotboll – ScoutLab" },
+      { property: "og:title", content: "AI-chatt om fotboll – Free Role Lab" },
       { property: "og:description", content: "Fråga vad som helst om fotboll." },
     ],
   }),

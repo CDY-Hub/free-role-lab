@@ -1,49 +1,150 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { SearchBox } from "@/components/site-header";
-import { Section, RatingPill } from "@/components/ui-bits";
-import { players, getClub, formatSEK, positionNames, coaches } from "@/lib/data";
-import { tmCompetitionTable } from "@/lib/tm.functions";
-
-const REAL_LEAGUES = [
-  { id: "SE1", name: "Allsvenskan", country: "Sverige" },
-  { id: "SE2", name: "Superettan", country: "Sverige" },
-  { id: "GB1", name: "Premier League", country: "England" },
-  { id: "ES1", name: "La Liga", country: "Spanien" },
-  { id: "L1", name: "Bundesliga", country: "Tyskland" },
-  { id: "IT1", name: "Serie A", country: "Italien" },
-];
+import { Section } from "@/components/ui-bits";
+import { tmPlayersBatch, tmClubsBatch, tmCompetitionTable } from "@/lib/tm.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "ScoutLab – sök vilken fotbollsspelare som helst" },
-      { name: "description", content: "Resultat, spelarprofiler, scoutrapporter och marknadsvärden – från toppligorna till division 3." },
-      { property: "og:title", content: "ScoutLab – sök vilken fotbollsspelare som helst" },
-      { property: "og:description", content: "Resultat, spelarprofiler, scoutrapporter och marknadsvärden – från toppligorna till division 3." },
+      { title: "Free Role Lab – sök vilken fotbollsspelare som helst" },
+      { name: "description", content: "Spelarprofiler, marknadsvärden, tabeller och fotbollshistorik – allt från riktiga datakällor." },
+      { property: "og:title", content: "Free Role Lab – sök vilken fotbollsspelare som helst" },
+      { property: "og:description", content: "Spelarprofiler, marknadsvärden, tabeller och fotbollshistorik – allt från riktiga datakällor." },
     ],
   }),
   component: Index,
 });
 
-function Index() {
+const WORLD_PLAYERS = ["342229", "418560", "937958", "581678", "371998", "433177", "598577", "580195", "683840", "369081"];
+const SWEDEN_PLAYERS = ["325443", "349066", "431755", "866246", "931838", "667287", "583189", "503075"];
+const TOP_CLUBS = ["418", "281", "11", "31", "131", "583", "27", "631", "46", "985", "148", "506", "13", "16"];
+
+const FORM_LEAGUES = [
+  { id: "GB1", name: "Premier League" },
+  { id: "ES1", name: "LaLiga" },
+  { id: "IT1", name: "Serie A" },
+  { id: "L1", name: "Bundesliga" },
+  { id: "FR1", name: "Ligue 1" },
+  { id: "SE1", name: "Allsvenskan" },
+];
+
+const eur = (v?: number | null) =>
+  v == null ? "–" : v >= 1e9 ? `€${(v / 1e9).toFixed(2)} mdr` : v >= 1e6 ? `€${(v / 1e6).toFixed(1)}m` : `€${Math.round(v / 1000)}k`;
+
+const TABS = [
+  { key: "world", label: "Dyraste i världen" },
+  { key: "sweden", label: "Dyraste i Sverige" },
+  { key: "clubs", label: "Mest värda klubbarna" },
+  { key: "form", label: "Formstarkast i Europa" },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
+function PlayerList({ ids }: { ids: string[] }) {
+  const q = useQuery({ queryKey: ["tm-batch", ids], queryFn: () => tmPlayersBatch({ data: ids }), staleTime: 3600_000 });
+  if (q.isLoading) return <p className="text-sm text-muted-foreground">Hämtar marknadsvärden…</p>;
+  if (q.error) return <p className="text-sm text-destructive">{(q.error as Error).message}</p>;
+  const top = [...(q.data ?? [])].sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0)).slice(0, 5);
+  return (
+    <ol className="divide-y">
+      {top.map((p: any, i: number) => (
+        <li key={p.id}>
+          <Link to="/proffs/spelare/$id" params={{ id: p.id }} className="flex items-center gap-4 py-3 hover:text-primary">
+            <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">{i + 1}</span>
+            {p.imageUrl && <img src={p.imageUrl} alt="" className="size-12 rounded-full border object-cover" loading="lazy" />}
+            <span className="flex-1">
+              <span className="block font-display text-lg font-bold">{p.name}</span>
+              <span className="text-xs text-muted-foreground">{p.position} · {p.club?.name} · {p.age} år</span>
+            </span>
+            <span className="font-display text-xl font-extrabold text-primary">{eur(p.marketValue)}</span>
+          </Link>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function ClubList() {
+  const q = useQuery({ queryKey: ["tm-clubs", TOP_CLUBS], queryFn: () => tmClubsBatch({ data: TOP_CLUBS }), staleTime: 3600_000 });
+  if (q.isLoading) return <p className="text-sm text-muted-foreground">Hämtar truppvärden…</p>;
+  if (q.error) return <p className="text-sm text-destructive">{(q.error as Error).message}</p>;
+  const top = [...(q.data ?? [])].sort((a, b) => (b.currentMarketValue ?? 0) - (a.currentMarketValue ?? 0)).slice(0, 5);
+  return (
+    <ol className="divide-y">
+      {top.map((c: any, i: number) => (
+        <li key={c.id} className="flex items-center gap-4 py-3">
+          <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">{i + 1}</span>
+          {c.image && <img src={c.image} alt="" className="size-10 object-contain" loading="lazy" />}
+          <span className="flex-1">
+            <span className="block font-display text-lg font-bold">{c.name}</span>
+            <span className="text-xs text-muted-foreground">{c.league?.name} · trupp på {c.squadSize} spelare</span>
+          </span>
+          <span className="font-display text-xl font-extrabold text-primary">{eur(c.currentMarketValue)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function FormList() {
   const tables = useQueries({
-    queries: REAL_LEAGUES.map((l) => ({
+    queries: FORM_LEAGUES.map((l) => ({
       queryKey: ["tm-table", l.id],
       queryFn: () => tmCompetitionTable({ data: l.id }),
-      staleTime: 3600_000,
+      staleTime: 1800_000,
+      retry: 1,
     })),
   });
-  const top = [...players]
-    .map((p) => ({ p, avg: p.matches.reduce((s, m) => s + m.rating, 0) / p.matches.length }))
-    .sort((a, b) => b.avg - a.avg)
-    .slice(0, 8);
-  const talents = players.filter((p) => p.age <= 20 && p.scoutReports[0]!.potential >= 4).slice(0, 6);
+  const loading = tables.some((t) => t.isLoading);
+  const rows: any[] = [];
+  tables.forEach((t, i) => {
+    for (const r of t.data?.[0]?.rows ?? []) {
+      if (!r.matches) continue;
+      rows.push({
+        club: r.clubName,
+        league: FORM_LEAGUES[i]!.name,
+        matches: r.matches,
+        w: r.wins, d: r.draws, l: r.losses,
+        gf: r.goalsFor, ga: r.goalsAgainst,
+        ppg: r.points / r.matches,
+        gd: (r.goalsFor - r.goalsAgainst) / r.matches,
+      });
+    }
+  });
+  if (loading) return <p className="text-sm text-muted-foreground">Räknar ut formen i Europas ligor…</p>;
+  const top = rows.sort((a, b) => b.ppg - a.ppg || b.gd - a.gd).slice(0, 5);
+  return (
+    <>
+      <ol className="divide-y">
+        {top.map((r, i) => (
+          <li key={r.club} className="flex items-center gap-4 py-3">
+            <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">{i + 1}</span>
+            <span className="flex-1">
+              <span className="block font-display text-lg font-bold">{r.club}</span>
+              <span className="text-xs text-muted-foreground">{r.league} · {r.w}V-{r.d}O-{r.l}F på {r.matches} matcher</span>
+            </span>
+            <span className="text-right">
+              <span className="block font-display text-lg font-extrabold text-primary">{r.gf}–{r.ga}</span>
+              <span className="text-xs text-muted-foreground">gjorda–insläppta</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Baseras på poäng per match och målskillnad i respektive liga, uppdateras löpande från Transfermarkt.
+      </p>
+    </>
+  );
+}
 
+function Index() {
+  const [tab, setTab] = useState<TabKey>("world");
   return (
     <main className="mx-auto max-w-7xl px-4 pb-16">
       <section className="py-12 md:py-16">
-        <p className="font-display text-sm font-bold tracking-widest text-primary">Från Champions League till division 3</p>
+        <p className="font-display text-sm font-bold tracking-widest text-primary">Riktig data. Riktiga siffror. Alltid uppdaterat.</p>
         <h1 className="mt-2 max-w-3xl font-display text-5xl font-extrabold leading-none md:text-7xl">
           Varje spelare. Varje match. <span className="text-primary">Varje detalj.</span>
         </h1>
@@ -51,98 +152,35 @@ function Index() {
           <SearchBox big />
           <p className="mt-2 text-sm text-muted-foreground">
             Testa t.ex. <Link to="/sok" search={{ q: "Gyökeres" }} className="text-primary underline">Gyökeres</Link>,{" "}
-            <Link to="/sok" search={{ q: "Lund" }} className="text-primary underline">Lund</Link> eller{" "}
-            <Link to="/sok" search={{ q: "Arteta" }} className="text-primary underline">Arteta</Link>
+            <Link to="/sok" search={{ q: "Arteta" }} className="text-primary underline">Arteta</Link> eller{" "}
+            <Link to="/sok" search={{ q: "Allsvenskan" }} className="text-primary underline">Allsvenskan</Link>
           </p>
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <Section title="Tabeller – uppdateras löpande" right={<span className="text-xs text-muted-foreground">Källa: Transfermarkt</span>}>
-            <div className="space-y-6">
-              {REAL_LEAGUES.map((l, i) => {
-                const q = tables[i];
-                const rows: any[] = q?.data?.[0]?.rows ?? [];
-                return (
-                  <div key={l.id}>
-                    <div className="mb-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{l.country} · {l.name}</div>
-                    {q?.isLoading && <p className="text-sm text-muted-foreground">Hämtar tabell…</p>}
-                    {q?.error && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}
-                    {rows.length > 0 && (
-                      <table className="w-full text-sm">
-                        <thead className="text-left text-xs uppercase text-muted-foreground">
-                          <tr><th className="py-1 pr-2">#</th><th>Klubb</th><th className="text-center">M</th><th className="text-center">V-O-F</th><th className="text-center">GM–IM</th><th className="text-right">P</th></tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {rows.map((r: any) => (
-                            <tr key={r.clubId}>
-                              <td className="py-1.5 pr-2 font-display font-bold text-muted-foreground">{r.position}</td>
-                              <td className="max-w-40 truncate font-semibold">{r.clubName}</td>
-                              <td className="text-center">{r.matches}</td>
-                              <td className="text-center">{r.wins}-{r.draws}-{r.losses}</td>
-                              <td className="text-center">{r.goalsFor}–{r.goalsAgainst}</td>
-                              <td className="text-right font-bold text-primary">{r.points}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </Section>
-        </div>
-
-        <div className="space-y-6">
-          <Section title="Formtoppen">
-            <ol className="space-y-2">
-              {top.map(({ p, avg }, i) => (
-                <li key={p.id}>
-                  <Link to="/spelare/$id" params={{ id: p.id }} className="flex items-center gap-3 rounded p-1 text-sm hover:bg-muted">
-                    <span className="w-4 font-display font-bold text-muted-foreground">{i + 1}</span>
-                    <span className="flex-1">
-                      <span className="block font-semibold">{p.name}</span>
-                      <span className="text-xs text-muted-foreground">{getClub(p.clubId)?.name}</span>
-                    </span>
-                    <RatingPill v={avg} />
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          </Section>
-          <Section title="Scouternas talanger">
-            <ul className="space-y-2">
-              {talents.map((p) => (
-                <li key={p.id}>
-                  <Link to="/spelare/$id" params={{ id: p.id }} className="flex justify-between rounded p-1 text-sm hover:bg-muted">
-                    <span>
-                      <span className="block font-semibold">{p.name} ({p.age})</span>
-                      <span className="text-xs text-muted-foreground">{positionNames[p.position]} · {getClub(p.clubId)?.name}</span>
-                    </span>
-                    <span className="text-xs font-bold text-primary">{formatSEK(p.marketValue)}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Section>
-          <Section title="Tränare">
-            <ul className="space-y-1">
-              {coaches.slice(0, 5).map((c) => (
-                <li key={c.id}>
-                  <Link to="/tranare/$id" params={{ id: c.id }} className="flex justify-between rounded p-1 text-sm hover:bg-muted">
-                    <span className="font-semibold">{c.name}</span>
-                    <span className="text-xs text-muted-foreground">{getClub(c.clubId)?.short}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        </div>
+      <div className="mb-6 flex flex-wrap gap-2">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`rounded-full border px-4 py-2 font-display text-sm font-bold transition-colors ${
+              tab === t.key ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:border-primary"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      <Section title={TABS.find((t) => t.key === tab)!.label} right={<span className="text-xs text-muted-foreground">Källa: Transfermarkt</span>}>
+        {tab === "world" && <PlayerList ids={WORLD_PLAYERS} />}
+        {tab === "sweden" && <PlayerList ids={SWEDEN_PLAYERS} />}
+        {tab === "clubs" && <ClubList />}
+        {tab === "form" && <FormList />}
+      </Section>
+
       <p className="mt-10 text-center text-xs text-muted-foreground">
-        Riktiga proffsspelare hämtas från Transfermarkt. Svenska lägre divisioner visas än så länge med exempeldata.
+        All data hämtas live från Transfermarkt och Wikipedia. Letar du efter en ligatabell? Sök på liganamnet, t.ex. "Allsvenskan".
       </p>
     </main>
   );

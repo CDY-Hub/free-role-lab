@@ -64,38 +64,49 @@ const ids = (d: unknown) => {
   return d as string[];
 };
 
+async function pool<T, R>(items: T[], fn: (item: T) => Promise<R | null>, concurrency = 3): Promise<R[]> {
+  const out: R[] = [];
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: concurrency }, async () => {
+      while (i < items.length) {
+        const item = items[i++]!;
+        const r = await fn(item);
+        if (r !== null) out.push(r);
+      }
+    }),
+  );
+  return out;
+}
+
 export const tmPlayersBatch = createServerFn({ method: "GET" })
   .inputValidator(ids)
-  .handler(async ({ data }) => {
-    const out: any[] = [];
-    for (const pid of data) {
+  .handler(async ({ data }) =>
+    pool(data, async (pid) => {
       try {
         const p = await tm<any>(`/players/${pid}/profile`);
-        out.push({
+        return {
           id: p.id, name: p.name, imageUrl: p.imageUrl, age: p.age,
           citizenship: p.citizenship, marketValue: p.marketValue,
           position: p.position?.main, club: p.club ? { name: p.club.name, id: p.club.id } : null,
-        });
-      } catch { /* hoppa över spelare som inte går att hämta */ }
-    }
-    return out;
-  });
+        };
+      } catch { return null; }
+    }),
+  );
 
 export const tmClubsBatch = createServerFn({ method: "GET" })
   .inputValidator(ids)
-  .handler(async ({ data }) => {
-    const out: any[] = [];
-    for (const cid of data) {
+  .handler(async ({ data }) =>
+    pool(data, async (cid) => {
       try {
         const c = await tm<any>(`/clubs/${cid}/profile`);
-        out.push({
+        return {
           id: c.id, name: c.name, image: c.image, currentMarketValue: c.currentMarketValue,
           squadSize: c.squad?.size, league: c.league ? { name: c.league.name, country: c.league.countryName } : null,
-        });
-      } catch { /* hoppa över */ }
-    }
-    return out;
-  });
+        };
+      } catch { return null; }
+    }),
+  );
 
 const wikiTitle = (d: unknown) => {
   if (typeof d !== "string" || !d.trim() || d.length > 150 || !/^[\w ()%,.'\-–]+$/u.test(d.trim())) throw new Error("Ogiltig artikel");
