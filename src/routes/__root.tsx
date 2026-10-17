@@ -62,7 +62,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ScoutLab – fotbollsdata och scouting" },
+      { title: "Free Role Lab – fotbollsdata och scouting" },
       { name: "description", content: "Sök spelare och tränare, se matcher, statistik och scoutrapporter." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

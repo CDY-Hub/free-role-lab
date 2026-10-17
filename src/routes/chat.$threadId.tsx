@@ -15,9 +15,9 @@ export const Route = createFileRoute("/chat/$threadId")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "AI-chatt om fotboll – ScoutLab" },
+      { title: "AI-chatt om fotboll – Free Role Lab" },
       { name: "description", content: "Fråga vad som helst om fotboll – spelare, tränare, taktik och mer." },
-      { property: "og:title", content: "AI-chatt om fotboll – ScoutLab" },
+      { property: "og:title", content: "AI-chatt om fotboll – Free Role Lab" },
       { property: "og:description", content: "Fråga vad som helst om fotboll – spelare, tränare, taktik och mer." },
     ],
   }),
@@ -102,7 +102,7 @@ function ChatWindow({ threadId, initial }: { threadId: string; initial: UIMessag
         <ConversationContent className="mx-auto w-full max-w-3xl">
           {messages.length === 0 && (
             <div className="flex flex-col items-center py-16 text-center">
-              <img src={logo} alt="ScoutLab" width={72} height={72} className="size-18" />
+              <img src={logo} alt="Free Role Lab" width={72} height={72} className="size-18" />
               <h1 className="mt-4 font-display text-4xl font-extrabold">Fråga om fotboll</h1>
               <p className="mt-2 text-muted-foreground">Spelare, tränare, taktik, övergångar – bara fotboll.</p>
               <div className="mt-6 grid w-full gap-2 sm:grid-cols-2">
