@@ -1,9 +1,9 @@
 # Roadmap
 
 ## Sökning
-- [ ] Visa Superettan och andra ligaträffar direkt och tydligt
-- [ ] Undvik onödiga hämtningar vid ligasökning och filtrerade tabeller
-- [ ] Verifiera ligasökning och spelarsökning
+- [x] Visa Superettan och andra ligaträffar direkt och tydligt
+- [x] Undvik onödiga hämtningar vid ligasökning och filtrerade tabeller
+- [x] Verifiera ligasökning och spelarsökning
 
 ## Klart: Free Role Lab-ombyggnad
 - [x] Namnbyte ScoutLab → Free Role Lab
