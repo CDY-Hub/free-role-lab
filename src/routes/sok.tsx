@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { SearchBox } from "@/components/site-header";
 import { Section } from "@/components/ui-bits";
 import { tmSearchPlayers, tmSearchCoaches } from "@/lib/tm.functions";
-import { LEAGUES } from "./tabeller";
+import { isLeagueSearch, matchingLeagues } from "@/lib/leagues";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/sok")({
   validateSearch: (s: Record<string, unknown>) => ({ q: typeof s["q"] === "string" ? s["q"] : "" }),
@@ -22,15 +23,36 @@ const eur = (v?: number | null) => (v ? (v >= 1e6 ? `€${(v / 1e6).toFixed(1)}m
 
 function SearchPage() {
   const { q } = Route.useSearch();
-  const tmPlayers = useQuery({ queryKey: ["tm-sp", q], queryFn: () => tmSearchPlayers({ data: q }), enabled: q.length > 1, staleTime: 3600_000 });
-  const tmCoaches = useQuery({ queryKey: ["tm-sc", q], queryFn: () => tmSearchCoaches({ data: q }), enabled: q.length > 1, staleTime: 3600_000 });
-  const leagueHits = q.length > 1 ? LEAGUES.filter((l) => l.name.toLowerCase().includes(q.toLowerCase()) || l.country.toLowerCase().includes(q.toLowerCase())) : [];
+  const leagueOnly = isLeagueSearch(q);
+  const searchPeople = q.trim().length > 1 && !leagueOnly;
+  const tmPlayers = useQuery({ queryKey: ["tm-sp", q.trim().toLocaleLowerCase("sv")], queryFn: () => tmSearchPlayers({ data: q.trim() }), enabled: searchPeople, staleTime: 3600_000, gcTime: 3600_000, retry: 1, refetchOnWindowFocus: false });
+  const tmCoaches = useQuery({ queryKey: ["tm-sc", q.trim().toLocaleLowerCase("sv")], queryFn: () => tmSearchCoaches({ data: q.trim() }), enabled: searchPeople, staleTime: 3600_000, gcTime: 3600_000, retry: 1, refetchOnWindowFocus: false });
+  const leagueHits = q.trim().length > 1 ? matchingLeagues(q) : [];
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
       <SearchBox key={q} initial={q} big />
       <h1 className="font-display text-3xl font-bold">Resultat för "{q}"</h1>
 
+      {leagueHits.length > 0 && (
+        <Section title="Ligor">
+          <ul className="divide-y text-sm">
+            {leagueHits.map((l) => (
+              <li key={l.id} className="flex items-center justify-between gap-3 py-3">
+                <Link to="/tabeller" search={{ liga: l.name }} className="min-w-0 hover:text-primary">
+                  <span className="block font-semibold">{l.name}</span>
+                  <span className="text-xs text-muted-foreground">{l.country}</span>
+                </Link>
+                <Button variant="outline" asChild>
+                  <Link to="/tabeller" search={{ liga: l.name }}>Visa tabell</Link>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {!leagueOnly && (
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="Spelare" right={<span className="text-xs text-muted-foreground">Transfermarkt</span>}>
           {tmPlayers.isLoading && <p className="text-sm text-muted-foreground">Hämtar…</p>}
@@ -53,6 +75,7 @@ function SearchPage() {
 
         <Section title="Tränare">
           {tmCoaches.isLoading && <p className="text-sm text-muted-foreground">Hämtar…</p>}
+          {tmCoaches.error && <p className="text-sm text-destructive">{(tmCoaches.error as Error).message}</p>}
           {tmCoaches.data?.length === 0 && <p className="text-sm text-muted-foreground">Inga träffar.</p>}
           <ul className="divide-y">
             {tmCoaches.data?.slice(0, 12).map((c: any) => (
@@ -66,20 +89,8 @@ function SearchPage() {
           </ul>
         </Section>
 
-        {leagueHits.length > 0 && (
-          <Section title="Ligor">
-            <ul className="divide-y text-sm">
-              {leagueHits.map((l) => (
-                <li key={l.id}>
-                  <Link to="/tabeller" search={{ liga: l.name }} className="block py-2 hover:text-primary">
-                    <span className="font-semibold">{l.name}</span> <span className="text-xs text-muted-foreground">· {l.country} – visa tabell</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        )}
       </div>
+      )}
     </main>
   );
 }
