@@ -1,9 +1,9 @@
 # Roadmap
 
-## Pågående: Free Role Lab-ombyggnad
-- [ ] Byt namn ScoutLab → Free Role Lab (header, titlar, chat)
-- [ ] Ta bort exempeldata (svenska divisioner, lokala spelar-/tränarsidor, lokal sök)
-- [ ] Startsida: 4 flikar – världens dyraste spelare, Sveriges dyraste, värdefullaste klubbarna, formstarkast i Europa
-- [ ] Göm ligatabeller från startsidan – flytta till egen sida, sökbara
-- [ ] FIFA-flik: VM per år via Wikipedia, stylad som sajten
-- [ ] UEFA-flik: alla UEFA-cuper med vinnare via Wikipedia, stylad som sajten
+## Klart: Free Role Lab-ombyggnad
+- [x] Namnbyte ScoutLab → Free Role Lab
+- [x] Exempeldata borttagen (svenska divisioner, lokala spelar-/tränarsidor)
+- [x] Startsida: 4 flikar med livedata (dyraste i världen/Sverige, mest värda klubbar, formstarkast i Europa)
+- [x] Ligatabeller gömda från startsidan – egna sidan /tabeller, sökbara via sökfältet
+- [x] FIFA-flik: VM per år (1930–2022) via Wikipedia, stylad som sajten
+- [x] UEFA-flik: alla UEFA-cuper med vinnare via Wikipedia, stylad som sajten
