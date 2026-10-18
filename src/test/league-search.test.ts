@@ -2,6 +2,23 @@ import { describe, expect, it } from "vitest";
 import { isLeagueSearch, matchingLeagues } from "@/lib/leagues";
 
 describe("League searches", () => {
+  it.each(["La liga", "la liga", "LA LIGA", "LaLiga", " la  liga ", "La-liga"])("finds the Spanish league for %s without searching people", (query) => {
+    expect(matchingLeagues(query).map((league) => league.id)).toEqual(["ES1"]);
+    expect(isLeagueSearch(query)).toBe(true);
+  });
+
+  it.each([
+    ["PremierLeague", "GB1"],
+    ["SerieA", "IT1"],
+    ["Ligue1", "FR1"],
+    ["Bundes liga", "L1"],
+    ["Allsvenskan", "SE1"],
+    ["Superettan", "SE2"],
+  ])("finds %s even when word spacing differs", (query, id) => {
+    expect(matchingLeagues(query).map((league) => league.id)).toEqual([id]);
+    expect(isLeagueSearch(query)).toBe(true);
+  });
+
   it("finds Superettan with its real Transfermarkt competition id", () => {
     expect(matchingLeagues(" Superettan ")).toEqual([{ id: "SE2", name: "Superettan", country: "Sverige" }]);
   });

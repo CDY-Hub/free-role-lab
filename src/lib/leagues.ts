@@ -9,7 +9,8 @@ export const LEAGUES = [
   { id: "FR1", name: "Ligue 1", country: "Frankrike" },
 ];
 
-const normalize = (value: string) => value.trim().toLocaleLowerCase("sv").replace(/\s+/g, " ");
+// League names are commonly written with or without spaces (La liga/LaLiga).
+const normalize = (value: string) => value.trim().toLocaleLowerCase("sv").normalize("NFD").replace(/\p{M}/gu, "").replace(/[\s\p{P}]+/gu, "");
 
 export function matchingLeagues(query: string) {
   const filter = normalize(query);
