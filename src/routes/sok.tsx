@@ -10,6 +10,8 @@ export const Route = createFileRoute("/sok")({
   validateSearch: (s: Record<string, unknown>) => ({ q: typeof s["q"] === "string" ? s["q"] : "" }),
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Sök spelare, tränare och ligor – Free Role Lab" },
       { name: "description", content: "Sök bland spelare, tränare och ligor." },
       { property: "og:title", content: "Sök – Free Role Lab" },

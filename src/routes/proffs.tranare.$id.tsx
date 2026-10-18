@@ -7,7 +7,7 @@ export const Route = createFileRoute("/proffs/tranare/$id")({
   head: ({ loaderData }) => {
     const t = loaderData?.name ? `${loaderData.name} – tränarprofil | Free Role Lab` : "Tränare | Free Role Lab";
     const d = loaderData?.name ? `Profil och bakgrund för tränaren ${loaderData.name}.` : "Tränarprofil";
-    const meta: any[] = [{ title: t }, { name: "description", content: d }, { property: "og:title", content: t }, { property: "og:description", content: d }];
+    const meta: any[] = [{ title: t }, { name: "description", content: d }, { property: "og:title", content: t }, { property: "og:description", content: d }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }];
     if (loaderData?.imageUrl?.startsWith("https://")) meta.push({ property: "og:image", content: loaderData.imageUrl }, { name: "twitter:image", content: loaderData.imageUrl });
     return { meta };
   },

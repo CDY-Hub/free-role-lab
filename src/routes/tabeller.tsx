@@ -8,6 +8,8 @@ export const Route = createFileRoute("/tabeller")({
   validateSearch: (s: Record<string, unknown>) => ({ liga: typeof s["liga"] === "string" ? s["liga"] : "" }),
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Ligatabeller – Free Role Lab" },
       { name: "description", content: "Aktuella tabeller för Allsvenskan, Superettan, Premier League, LaLiga, Bundesliga, Serie A och Ligue 1." },
       { property: "og:title", content: "Ligatabeller – Free Role Lab" },

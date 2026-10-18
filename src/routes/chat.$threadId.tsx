@@ -15,9 +15,11 @@ export const Route = createFileRoute("/chat/$threadId")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "AI-chatt om fotboll – Free Role Lab" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { title: "Fotbollssamtal – Free Role Lab" },
       { name: "description", content: "Fråga vad som helst om fotboll – spelare, tränare, taktik och mer." },
-      { property: "og:title", content: "AI-chatt om fotboll – Free Role Lab" },
+      { property: "og:title", content: "Fotbollssamtal – Free Role Lab" },
       { property: "og:description", content: "Fråga vad som helst om fotboll – spelare, tränare, taktik och mer." },
     ],
   }),

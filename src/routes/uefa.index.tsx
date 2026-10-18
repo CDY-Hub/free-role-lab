@@ -4,6 +4,8 @@ import { Section } from "@/components/ui-bits";
 export const Route = createFileRoute("/uefa/")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "UEFA – alla cuper och vinnare – Free Role Lab" },
       { name: "description", content: "Champions League, Europa League, Conference League, Cupvinnarcupen och Supercupen – alla vinnare genom tiderna." },
       { property: "og:title", content: "UEFA – alla cuper och vinnare – Free Role Lab" },
