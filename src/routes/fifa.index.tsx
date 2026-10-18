@@ -4,6 +4,8 @@ import { Section } from "@/components/ui-bits";
 export const Route = createFileRoute("/fifa/")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "FIFA – Världsmästerskapen – Free Role Lab" },
       { name: "description", content: "Alla fotbolls-VM genom tiderna – välj ett år och läs allt om mästerskapet." },
       { property: "og:title", content: "FIFA – Världsmästerskapen – Free Role Lab" },

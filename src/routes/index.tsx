@@ -8,6 +8,8 @@ import { tmPlayersBatch, tmClubsBatch, tmCompetitionTable } from "@/lib/tm.funct
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Free Role Lab – sök vilken fotbollsspelare som helst" },
       { name: "description", content: "Spelarprofiler, marknadsvärden, tabeller och fotbollshistorik – allt från riktiga datakällor." },
       { property: "og:title", content: "Free Role Lab – sök vilken fotbollsspelare som helst" },

@@ -5,6 +5,8 @@ import { loadThreads, newId } from "@/lib/threads";
 export const Route = createFileRoute("/chat/")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "AI-chatt om fotboll – Free Role Lab" },
       { name: "description", content: "Fråga vad som helst om fotboll." },
       { property: "og:title", content: "AI-chatt om fotboll – Free Role Lab" },
