@@ -14,6 +14,8 @@ describe("League searches", () => {
     ["Bundes liga", "L1"],
     ["Allsvenskan", "SE1"],
     ["Superettan", "SE2"],
+    ["Liga NOS", "PO1"],
+    ["Eredivisie", "NL1"],
   ])("finds %s even when word spacing differs", (query, id) => {
     expect(matchingLeagues(query).map((league) => league.id)).toEqual([id]);
     expect(isLeagueSearch(query)).toBe(true);
@@ -29,8 +31,8 @@ describe("League searches", () => {
     expect(isLeagueSearch("super")).toBe(false);
   });
 
-  it("only fetches the selected league while an unfiltered view retains all seven", () => {
+  it("only fetches the selected league while an unfiltered view retains all nine", () => {
     expect(matchingLeagues("Superettan").map((league) => league.id)).toEqual(["SE2"]);
-    expect(matchingLeagues("")).toHaveLength(7);
+    expect(matchingLeagues("")).toHaveLength(9);
   });
 });
