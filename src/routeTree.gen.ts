@@ -16,6 +16,7 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatThreadIdRouteImport } from './routes/chat.$threadId'
 import { Route as FifaIndexRouteImport } from './routes/fifa.index'
+import { Route as LigaIdRouteImport } from './routes/liga.$id'
 import { Route as UefaIndexRouteImport } from './routes/uefa.index'
 import { Route as UefaSlugRouteImport } from './routes/uefa.$slug'
 import { Route as FifaVmYearRouteImport } from './routes/fifa.vm.$year'
@@ -57,6 +58,11 @@ const FifaIndexRoute = FifaIndexRouteImport.update({
   path: '/fifa/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LigaIdRoute = LigaIdRouteImport.update({
+  id: '/liga/$id',
+  path: '/liga/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UefaIndexRoute = UefaIndexRouteImport.update({
   id: '/uefa/',
   path: '/uefa/',
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/tabeller': typeof TabellerRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
+  '/liga/$id': typeof LigaIdRoute
   '/uefa/$slug': typeof UefaSlugRoute
   '/chat/': typeof ChatIndexRoute
   '/fifa/': typeof FifaIndexRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/tabeller': typeof TabellerRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
+  '/liga/$id': typeof LigaIdRoute
   '/uefa/$slug': typeof UefaSlugRoute
   '/chat': typeof ChatIndexRoute
   '/fifa': typeof FifaIndexRoute
@@ -118,6 +126,7 @@ export interface FileRoutesById {
   '/tabeller': typeof TabellerRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
+  '/liga/$id': typeof LigaIdRoute
   '/uefa/$slug': typeof UefaSlugRoute
   '/chat/': typeof ChatIndexRoute
   '/fifa/': typeof FifaIndexRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/tabeller'
     | '/api/chat'
     | '/chat/$threadId'
+    | '/liga/$id'
     | '/uefa/$slug'
     | '/chat/'
     | '/fifa/'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/tabeller'
     | '/api/chat'
     | '/chat/$threadId'
+    | '/liga/$id'
     | '/uefa/$slug'
     | '/chat'
     | '/fifa'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/tabeller'
     | '/api/chat'
     | '/chat/$threadId'
+    | '/liga/$id'
     | '/uefa/$slug'
     | '/chat/'
     | '/fifa/'
@@ -177,6 +189,7 @@ export interface RootRouteChildren {
   TabellerRoute: typeof TabellerRoute
   ApiChatRoute: typeof ApiChatRoute
   ChatThreadIdRoute: typeof ChatThreadIdRoute
+  LigaIdRoute: typeof LigaIdRoute
   UefaSlugRoute: typeof UefaSlugRoute
   ChatIndexRoute: typeof ChatIndexRoute
   FifaIndexRoute: typeof FifaIndexRoute
@@ -237,6 +250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FifaIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/liga/$id': {
+      id: '/liga/$id'
+      path: '/liga/$id'
+      fullPath: '/liga/$id'
+      preLoaderRoute: typeof LigaIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/uefa/': {
       id: '/uefa/'
       path: '/uefa'
@@ -281,6 +301,7 @@ const rootRouteChildren: RootRouteChildren = {
   TabellerRoute: TabellerRoute,
   ApiChatRoute: ApiChatRoute,
   ChatThreadIdRoute: ChatThreadIdRoute,
+  LigaIdRoute: LigaIdRoute,
   UefaSlugRoute: UefaSlugRoute,
   ChatIndexRoute: ChatIndexRoute,
   FifaIndexRoute: FifaIndexRoute,
