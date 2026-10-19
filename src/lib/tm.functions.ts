@@ -141,6 +141,29 @@ export const tmCompetitionTable = createServerFn({ method: "GET" })
   .inputValidator(comp)
   .handler(async ({ data }) => (await tm<any>(`/competitions/${data}/table`)).tables ?? []);
 
+export const tmCompetitionClubs = createServerFn({ method: "GET" })
+  .inputValidator(comp)
+  .handler(async ({ data }) => (await tm<any>(`/competitions/${data}/clubs`)).clubs ?? []);
+
+// Hämtar alla trupper i ligan och returnerar de mest värda spelarna (live från Transfermarkt).
+export const tmLeagueTopValues = createServerFn({ method: "GET" })
+  .inputValidator(comp)
+  .handler(async ({ data }) => {
+    const clubs: { id: string; name: string }[] = (await tm<any>(`/competitions/${data}/clubs`)).clubs ?? [];
+    const players = await pool(clubs, async (c) => {
+      try {
+        const body = await tm<any>(`/clubs/${c.id}/players`);
+        return (body.players ?? []).map((p: any) => ({
+          id: p.id, name: p.name, imageUrl: p.imageUrl, age: p.age,
+          position: p.position, marketValue: p.marketValue,
+          nationality: Array.isArray(p.nationality) ? p.nationality[0] : p.nationality,
+          club: c.name,
+        }));
+      } catch { return null; }
+    });
+    return players.flat().sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0)).slice(0, 5);
+  });
+
 export const tmPlayerMatchesSeason = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => {
     if (typeof d !== "object" || d === null) throw new Error("Ogiltig sökning");

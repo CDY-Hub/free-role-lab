@@ -41,12 +41,12 @@ function SearchPage() {
           <ul className="divide-y text-sm">
             {leagueHits.map((l) => (
               <li key={l.id} className="flex items-center justify-between gap-3 py-3">
-                <Link to="/tabeller" search={{ liga: l.name }} className="min-w-0 hover:text-primary">
+                <Link to="/liga/$id" params={{ id: l.id }} className="min-w-0 hover:text-primary">
                   <span className="block font-semibold">{l.name}</span>
                   <span className="text-xs text-muted-foreground">{l.country}</span>
                 </Link>
                 <Button variant="outline" asChild>
-                  <Link to="/tabeller" search={{ liga: l.name }}>Visa tabell</Link>
+                  <Link to="/liga/$id" params={{ id: l.id }}>Öppna ligan</Link>
                 </Button>
               </li>
             ))}

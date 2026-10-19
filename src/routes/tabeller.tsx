@@ -43,7 +43,7 @@ function TablesPage() {
       {visible.map(({ l, q }) => {
         const rows: any[] = q?.data?.[0]?.rows ?? [];
         return (
-          <Section key={l.id} title={`${l.country} · ${l.name}`}>
+          <Section key={l.id} title={`${l.country} · ${l.name}`} right={<Link to="/liga/$id" params={{ id: l.id }} className="text-xs font-semibold text-primary underline">Öppna ligan</Link>}>
             {q?.isLoading && <p className="text-sm text-muted-foreground">Hämtar tabell…</p>}
             {q?.error && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}
             {q?.isSuccess && rows.length === 0 && <p className="text-sm text-muted-foreground">Ingen tabell tillgänglig från Transfermarkt just nu.</p>}
