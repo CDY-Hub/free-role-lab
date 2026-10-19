@@ -6,7 +6,7 @@ async function tm<T = any>(path: string): Promise<T> {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(`${BASE}${path}`, { headers: { accept: "application/json" } });
     const body: any = await res.json().catch(() => null);
-    const limited = res.status === 429 || (body && typeof body.error === "string" && body.error.includes("Rate limit"));
+    const limited = res.status === 429 || res.status >= 500 || (body && typeof body.error === "string" && body.error.includes("Rate limit"));
     if (limited) {
       await new Promise((r) => setTimeout(r, 1600 * (attempt + 1)));
       continue;
@@ -14,7 +14,7 @@ async function tm<T = any>(path: string): Promise<T> {
     if (!res.ok || !body) throw new Error(`Transfermarkt svarade ${res.status}`);
     return body as T;
   }
-  throw new Error("Transfermarkt är upptaget just nu, försök igen om en stund.");
+  throw new Error("Transfermarkts datatjänst är tillfälligt nere eller överbelastad. Försök igen om en stund.");
 }
 
 const str = (d: unknown) => {
