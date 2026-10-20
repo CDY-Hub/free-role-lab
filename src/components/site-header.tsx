@@ -55,6 +55,9 @@ export function SiteHeader() {
           <Button variant="ghost" asChild>
             <Link to="/uefa">UEFA</Link>
           </Button>
+          <Button variant="ghost" asChild>
+            <Link to="/matcher">Matcher</Link>
+          </Button>
         </nav>
         <Link to="/" className="flex items-center gap-2">
           <img src={logo} alt="" width={32} height={32} className="size-8" />
