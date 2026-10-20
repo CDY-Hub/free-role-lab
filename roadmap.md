@@ -1,5 +1,11 @@
 # Roadmap
 
+## Matcher / livescore
+- [x] /matcher-sida med dagens matcher, liveresultat och dagnavigering
+- [x] Stöd för egen livescore-server (LIVESCORE_API_URL) + football-data.org (FOOTBALL_DATA_TOKEN)
+- [ ] Användaren driftar livescore-servern (paket i Files/livescore-server) och ger oss adressen
+- [ ] Användaren lägger in FOOTBALL_DATA_TOKEN (nyckel från football-data.org)
+
 ## Sökning
 - [x] Visa Superettan och andra ligaträffar direkt och tydligt
 - [x] Undvik onödiga hämtningar vid ligasökning och filtrerade tabeller

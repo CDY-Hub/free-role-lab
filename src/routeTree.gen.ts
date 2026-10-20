@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MatcherRouteImport } from './routes/matcher'
 import { Route as SokRouteImport } from './routes/sok'
 import { Route as TabellerRouteImport } from './routes/tabeller'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
@@ -26,6 +27,11 @@ import { Route as ProffsTranareIdRouteImport } from './routes/proffs.tranare.$id
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MatcherRoute = MatcherRouteImport.update({
+  id: '/matcher',
+  path: '/matcher',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SokRoute = SokRouteImport.update({
@@ -91,6 +97,7 @@ const ProffsTranareIdRoute = ProffsTranareIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/matcher': typeof MatcherRoute
   '/sok': typeof SokRoute
   '/tabeller': typeof TabellerRoute
   '/api/chat': typeof ApiChatRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/matcher': typeof MatcherRoute
   '/sok': typeof SokRoute
   '/tabeller': typeof TabellerRoute
   '/api/chat': typeof ApiChatRoute
@@ -122,6 +130,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/matcher': typeof MatcherRoute
   '/sok': typeof SokRoute
   '/tabeller': typeof TabellerRoute
   '/api/chat': typeof ApiChatRoute
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/matcher'
     | '/sok'
     | '/tabeller'
     | '/api/chat'
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/matcher'
     | '/sok'
     | '/tabeller'
     | '/api/chat'
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/matcher'
     | '/sok'
     | '/tabeller'
     | '/api/chat'
@@ -185,6 +197,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MatcherRoute: typeof MatcherRoute
   SokRoute: typeof SokRoute
   TabellerRoute: typeof TabellerRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -206,6 +219,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/matcher': {
+      id: '/matcher'
+      path: '/matcher'
+      fullPath: '/matcher'
+      preLoaderRoute: typeof MatcherRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sok': {
@@ -297,6 +317,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MatcherRoute: MatcherRoute,
   SokRoute: SokRoute,
   TabellerRoute: TabellerRoute,
   ApiChatRoute: ApiChatRoute,
