@@ -1,20 +1,45 @@
 import { createServerFn } from "@tanstack/react-start";
 
-const BASE = "https://transfermarkt-api.fly.dev";
+// TRANSFERMARKT_API_URL låter er peka på en egen instans av transfermarkt-api (snabbare än den publika).
+const BASE = (process.env["TRANSFERMARKT_API_URL"] || "https://transfermarkt-api.fly.dev").replace(/\/$/, "");
 
-async function tm<T = any>(path: string): Promise<T> {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await fetch(`${BASE}${path}`, { headers: { accept: "application/json" } });
-    const body: any = await res.json().catch(() => null);
-    const limited = res.status === 429 || res.status >= 500 || (body && typeof body.error === "string" && body.error.includes("Rate limit"));
-    if (limited) {
-      await new Promise((r) => setTimeout(r, 1600 * (attempt + 1)));
-      continue;
+const MIN = 60_000;
+const HOUR = 60 * MIN;
+
+// Serverns minnescache: samma anrop delas mellan alla besökare och flikbyten blir omedelbara.
+const cache = new Map<string, { exp: number; value: Promise<unknown> }>();
+function cached<T>(key: string, ttl: number, fn: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.value as Promise<T>;
+  const value = fn().catch((e) => {
+    cache.delete(key);
+    throw e;
+  });
+  cache.set(key, { exp: Date.now() + ttl, value });
+  if (cache.size > 3000) cache.delete(cache.keys().next().value!);
+  return value;
+}
+
+function tm<T = any>(path: string, ttl = 6 * HOUR): Promise<T> {
+  return cached(`tm:${path}`, ttl, async () => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let res: Response;
+      try {
+        res = await fetch(`${BASE}${path}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+      } catch {
+        continue;
+      }
+      const body: any = await res.json().catch(() => null);
+      const limited = res.status === 429 || res.status >= 500 || (body && typeof body.error === "string" && body.error.includes("Rate limit"));
+      if (limited) {
+        await new Promise((r) => setTimeout(r, 800));
+        continue;
+      }
+      if (!res.ok || !body) throw new Error(`Transfermarkt svarade ${res.status}`);
+      return body as T;
     }
-    if (!res.ok || !body) throw new Error(`Transfermarkt svarade ${res.status}`);
-    return body as T;
-  }
-  throw new Error("Transfermarkts datatjänst är tillfälligt nere eller överbelastad. Försök igen om en stund.");
+    throw new Error("Transfermarkts datatjänst svarar inte just nu. Försök igen om en stund.");
+  });
 }
 
 const str = (d: unknown) => {
@@ -25,14 +50,37 @@ const id = (d: unknown) => {
   if (typeof d !== "string" || !/^\d+$/.test(d)) throw new Error("Ogiltigt id");
   return d;
 };
+const searchPage = (d: unknown) => {
+  if (typeof d !== "object" || d === null) throw new Error("Ogiltig sökning");
+  const { q, page } = d as Record<string, unknown>;
+  const p = Number(page ?? 1);
+  if (!Number.isInteger(p) || p < 1 || p > 50) throw new Error("Ogiltig sida");
+  return { q: str(q), page: p };
+};
 
 export const tmSearchPlayers = createServerFn({ method: "GET" })
   .inputValidator(str)
   .handler(async ({ data }) => (await tm<any>(`/players/search/${data}`)).results ?? []);
 
+// Paginerad spelarsök – Transfermarkt har hundratusentals spelare, så vi hämtar sida för sida.
+export const tmSearchPlayersPage = createServerFn({ method: "GET" })
+  .inputValidator(searchPage)
+  .handler(async ({ data }) => {
+    const body = await tm<any>(`/players/search/${data.q}?page_number=${data.page}`);
+    return { results: (body.results ?? []) as any[], page: Number(body.pageNumber ?? data.page), lastPage: Number(body.lastPageNumber ?? data.page) };
+  });
+
 export const tmSearchCoaches = createServerFn({ method: "GET" })
   .inputValidator(str)
   .handler(async ({ data }) => (await tm<any>(`/coaches/search/${data}`)).results ?? []);
+
+export const tmSearchCompetitions = createServerFn({ method: "GET" })
+  .inputValidator(str)
+  .handler(async ({ data }) => (await tm<any>(`/competitions/search/${data}`, 24 * HOUR)).results ?? []);
+
+export const tmSearchClubs = createServerFn({ method: "GET" })
+  .inputValidator(str)
+  .handler(async ({ data }) => (await tm<any>(`/clubs/search/${data}`, 24 * HOUR)).results ?? []);
 
 export const tmPlayerProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
@@ -48,7 +96,7 @@ export const tmPlayerTransfers = createServerFn({ method: "GET" })
 
 export const tmPlayerMatches = createServerFn({ method: "GET" })
   .inputValidator(id)
-  .handler(async ({ data }) => (await tm<any>(`/players/${data}/matches`)).matches ?? []);
+  .handler(async ({ data }) => (await tm<any>(`/players/${data}/matches`, HOUR)).matches ?? []);
 
 export const tmCoachProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
@@ -58,13 +106,20 @@ export const tmClubProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
   .handler(async ({ data }) => tm<any>(`/clubs/${data}/profile`));
 
+export const tmClubPlayers = createServerFn({ method: "GET" })
+  .inputValidator(id)
+  .handler(async ({ data }) => {
+    const body = await tm<any>(`/clubs/${data}/players`);
+    return (body.players ?? []) as any[];
+  });
+
 const ids = (d: unknown) => {
   if (!Array.isArray(d) || d.length === 0 || d.length > 20 || !d.every((x) => typeof x === "string" && /^\d+$/.test(x)))
     throw new Error("Ogiltiga id:n");
   return d as string[];
 };
 
-async function pool<T, R>(items: T[], fn: (item: T) => Promise<R | null>, concurrency = 3): Promise<R[]> {
+async function pool<T, R>(items: T[], fn: (item: T) => Promise<R | null>, concurrency = 4): Promise<R[]> {
   const out: R[] = [];
   let i = 0;
   await Promise.all(
@@ -82,30 +137,34 @@ async function pool<T, R>(items: T[], fn: (item: T) => Promise<R | null>, concur
 export const tmPlayersBatch = createServerFn({ method: "GET" })
   .inputValidator(ids)
   .handler(async ({ data }) =>
-    pool(data, async (pid) => {
-      try {
-        const p = await tm<any>(`/players/${pid}/profile`);
-        return {
-          id: p.id, name: p.name, imageUrl: p.imageUrl, age: p.age,
-          citizenship: p.citizenship, marketValue: p.marketValue,
-          position: p.position?.main, club: p.club ? { name: p.club.name, id: p.club.id } : null,
-        };
-      } catch { return null; }
-    }),
+    cached(`batch-p:${data.join(",")}`, 6 * HOUR, () =>
+      pool(data, async (pid) => {
+        try {
+          const p = await tm<any>(`/players/${pid}/profile`);
+          return {
+            id: p.id, name: p.name, imageUrl: p.imageUrl, age: p.age,
+            citizenship: p.citizenship, marketValue: p.marketValue,
+            position: p.position?.main, club: p.club ? { name: p.club.name, id: p.club.id } : null,
+          };
+        } catch { return null; }
+      }),
+    ),
   );
 
 export const tmClubsBatch = createServerFn({ method: "GET" })
   .inputValidator(ids)
   .handler(async ({ data }) =>
-    pool(data, async (cid) => {
-      try {
-        const c = await tm<any>(`/clubs/${cid}/profile`);
-        return {
-          id: c.id, name: c.name, image: c.image, currentMarketValue: c.currentMarketValue,
-          squadSize: c.squad?.size, league: c.league ? { name: c.league.name, country: c.league.countryName } : null,
-        };
-      } catch { return null; }
-    }),
+    cached(`batch-c:${data.join(",")}`, 6 * HOUR, () =>
+      pool(data, async (cid) => {
+        try {
+          const c = await tm<any>(`/clubs/${cid}/profile`);
+          return {
+            id: c.id, name: c.name, image: c.image, currentMarketValue: c.currentMarketValue,
+            squadSize: c.squad?.size, league: c.league ? { name: c.league.name, country: c.league.countryName } : null,
+          };
+        } catch { return null; }
+      }),
+    ),
   );
 
 const wikiTitle = (d: unknown) => {
@@ -115,22 +174,24 @@ const wikiTitle = (d: unknown) => {
 
 export const wikiPage = createServerFn({ method: "GET" })
   .inputValidator(wikiTitle)
-  .handler(async ({ data }) => {
-    const res = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(data)}&prop=text|displaytitle&format=json&formatversion=2&redirects=1`,
-      { headers: { "User-Agent": "FreeRoleLab/1.0 (fotbollsstatistik)", accept: "application/json" } },
-    );
-    const body: any = await res.json().catch(() => null);
-    if (!res.ok || !body?.parse?.text) throw new Error("Kunde inte hämta artikeln från Wikipedia.");
-    let html: string = body.parse.text;
-    html = html
-      .replace(/href="\/wiki\//g, 'href="https://en.wikipedia.org/wiki/')
-      .replace(/href="\/w\//g, 'href="https://en.wikipedia.org/w/')
-      .replace(/<a href="https:\/\/en\.wikipedia\.org/g, '<a target="_blank" rel="noopener" href="https://en.wikipedia.org')
-      .replace(/src="\/\//g, 'src="https://')
-      .replace(/srcset="\/\//g, 'srcset="https://');
-    return { title: body.parse.title as string, html };
-  });
+  .handler(async ({ data }) =>
+    cached(`wiki:${data}`, 12 * HOUR, async () => {
+      const res = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(data)}&prop=text|displaytitle&format=json&formatversion=2&redirects=1`,
+        { headers: { "User-Agent": "FreeRoleLab/1.0 (fotbollsstatistik)", accept: "application/json" }, signal: AbortSignal.timeout(20_000) },
+      );
+      const body: any = await res.json().catch(() => null);
+      if (!res.ok || !body?.parse?.text) throw new Error("Kunde inte hämta artikeln från Wikipedia.");
+      let html: string = body.parse.text;
+      html = html
+        .replace(/href="\/wiki\//g, 'href="https://en.wikipedia.org/wiki/')
+        .replace(/href="\/w\//g, 'href="https://en.wikipedia.org/w/')
+        .replace(/<a href="https:\/\/en\.wikipedia\.org/g, '<a target="_blank" rel="noopener" href="https://en.wikipedia.org')
+        .replace(/src="\/\//g, 'src="https://')
+        .replace(/srcset="\/\//g, 'srcset="https://');
+      return { title: body.parse.title as string, html };
+    }),
+  );
 
 const comp = (d: unknown) => {
   if (typeof d !== "string" || !/^[A-Z0-9]{2,6}$/.test(d)) throw new Error("Ogiltig serie");
@@ -139,30 +200,32 @@ const comp = (d: unknown) => {
 
 export const tmCompetitionTable = createServerFn({ method: "GET" })
   .inputValidator(comp)
-  .handler(async ({ data }) => (await tm<any>(`/competitions/${data}/table`)).tables ?? []);
+  .handler(async ({ data }) => (await tm<any>(`/competitions/${data}/table`, 30 * MIN)).tables ?? []);
 
 export const tmCompetitionClubs = createServerFn({ method: "GET" })
   .inputValidator(comp)
-  .handler(async ({ data }) => (await tm<any>(`/competitions/${data}/clubs`)).clubs ?? []);
+  .handler(async ({ data }) => (await tm<any>(`/competitions/${data}/clubs`, 24 * HOUR)).clubs ?? []);
 
 // Hämtar alla trupper i ligan och returnerar de mest värda spelarna (live från Transfermarkt).
 export const tmLeagueTopValues = createServerFn({ method: "GET" })
   .inputValidator(comp)
-  .handler(async ({ data }) => {
-    const clubs: { id: string; name: string }[] = (await tm<any>(`/competitions/${data}/clubs`)).clubs ?? [];
-    const players = await pool(clubs, async (c) => {
-      try {
-        const body = await tm<any>(`/clubs/${c.id}/players`);
-        return (body.players ?? []).map((p: any) => ({
-          id: p.id, name: p.name, imageUrl: p.imageUrl, age: p.age,
-          position: p.position, marketValue: p.marketValue,
-          nationality: Array.isArray(p.nationality) ? p.nationality[0] : p.nationality,
-          club: c.name,
-        }));
-      } catch { return null; }
-    });
-    return players.flat().sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0)).slice(0, 5);
-  });
+  .handler(async ({ data }) =>
+    cached(`top:${data}`, 6 * HOUR, async () => {
+      const clubs: { id: string; name: string }[] = (await tm<any>(`/competitions/${data}/clubs`, 24 * HOUR)).clubs ?? [];
+      const players = await pool(clubs, async (c) => {
+        try {
+          const body = await tm<any>(`/clubs/${c.id}/players`);
+          return (body.players ?? []).map((p: any) => ({
+            id: p.id, name: p.name, imageUrl: p.imageUrl, age: p.age,
+            position: p.position, marketValue: p.marketValue,
+            nationality: Array.isArray(p.nationality) ? p.nationality[0] : p.nationality,
+            club: c.name,
+          }));
+        } catch { return null; }
+      });
+      return players.flat().sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0)).slice(0, 5);
+    }),
+  );
 
 export const tmPlayerMatchesSeason = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => {
