@@ -24,7 +24,7 @@ const num = (v: unknown): number | null => {
 
 // Livescore-servern (egen driftad livescore-api) – används om LIVESCORE_API_URL är satt.
 async function fromLivescore(date: string): Promise<MatchItem[] | null> {
-  const base = process.env.LIVESCORE_API_URL;
+  const base = process.env["LIVESCORE_API_URL"];
   if (!base) return null;
   try {
     const res = await fetch(`${base.replace(/\/$/, "")}/matches?date=${date}`, {
@@ -59,7 +59,7 @@ async function fromLivescore(date: string): Promise<MatchItem[] | null> {
 
 // football-data.org v4 – gratisnivå, kräver FOOTBALL_DATA_TOKEN.
 async function fromFootballData(date: string): Promise<MatchItem[]> {
-  const token = process.env.FOOTBALL_DATA_TOKEN;
+  const token = process.env["FOOTBALL_DATA_TOKEN"];
   if (!token) throw new Error("Ingen matchkälla är kopplad ännu – lägg till en nyckel för football-data.org eller drifta livescore-servern.");
   const res = await fetch(`https://api.football-data.org/v4/matches?dateFrom=${date}&dateTo=${date}`, {
     headers: { "X-Auth-Token": token, accept: "application/json" },
