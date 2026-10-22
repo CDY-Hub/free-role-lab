@@ -90,6 +90,20 @@ function MatchesPage() {
       {q.isLoading && <p className="text-sm text-muted-foreground">Hämtar matcherna…</p>}
       {q.error && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}
 
+      {q.data?.missingConfig && (
+        <div className="mb-8 rounded-xl border border-primary/30 bg-primary/5 p-5 text-sm">
+          <div className="flex items-center gap-2 font-display text-lg font-bold text-primary">
+            <span>⚡ Livescore i realtid från api-football.com</span>
+          </div>
+          <p className="mt-1.5 text-muted-foreground">
+            Just nu visas förhandsvisningsmatcher för Champions League, Premier League, LaLiga, Serie A och Allsvenskan. För att hämta direkt realtidsdata, lägg till din nyckel från <strong>api-football.com</strong> i miljövariablerna (eller <code>.env</code>):
+          </p>
+          <div className="mt-3 rounded-lg border bg-background p-2.5 font-mono text-xs text-foreground">
+            API_FOOTBALL_KEY=din_api_nyckel_här
+          </div>
+        </div>
+      )}
+
       {q.data && groups.size === 0 && (
         <p className="text-sm text-muted-foreground">Inga matcher hittades det här datumet.</p>
       )}
@@ -99,15 +113,21 @@ function MatchesPage() {
           <Section key={league} title={league}>
             <ol className="divide-y">
               {matches.map((m) => (
-                <li key={m.id} className="flex items-center gap-4 py-2.5">
+                <li key={m.id} className="flex items-center gap-3 py-3">
                   <span className="w-16 shrink-0 text-center">
                     <StatusBadge m={m} />
                   </span>
-                  <span className="flex-1 text-right font-semibold">{m.home}</span>
+                  <div className="flex flex-1 items-center justify-end gap-2 text-right">
+                    <span className="font-semibold">{m.home}</span>
+                    {m.homeLogo && <img src={m.homeLogo} alt="" className="size-5 object-contain" loading="lazy" />}
+                  </div>
                   <span className="w-16 shrink-0 text-center font-display text-lg font-extrabold text-primary">
                     {m.homeScore != null && m.awayScore != null ? `${m.homeScore}–${m.awayScore}` : "–"}
                   </span>
-                  <span className="flex-1 font-semibold">{m.away}</span>
+                  <div className="flex flex-1 items-center justify-start gap-2 text-left">
+                    {m.awayLogo && <img src={m.awayLogo} alt="" className="size-5 object-contain" loading="lazy" />}
+                    <span className="font-semibold">{m.away}</span>
+                  </div>
                 </li>
               ))}
             </ol>
@@ -117,7 +137,15 @@ function MatchesPage() {
 
       {q.data && (
         <p className="mt-10 text-center text-xs text-muted-foreground">
-          Källa: {q.data.source === "livescore" ? "Livescore" : "football-data.org"}. Resultaten uppdateras löpande.
+          Källa: {
+            q.data.source === "api-football"
+              ? "api-football.com (Top 5 ligor, cuper & Champions League)"
+              : q.data.source === "livescore"
+              ? "Egen livescore-server"
+              : q.data.source === "football-data"
+              ? "football-data.org"
+              : "Free Role Lab – Förhandsvisning (Top 5 & Cuper)"
+          }.
         </p>
       )}
     </main>

@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { wikiPage } from "@/lib/tm.functions";
 
-const VALID = /^(19[3-9]\d|20[0-2]\d)$/;
+const VALID = /^(19[3-9]\d|20[0-3]\d)$/;
 
 export const Route = createFileRoute("/fifa/vm/$year")({
   loader: ({ params }) => {

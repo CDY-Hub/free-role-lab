@@ -152,11 +152,6 @@ function Index() {
         </h1>
         <div className="mt-8 max-w-3xl">
           <SearchBox big />
-          <p className="mt-2 text-sm text-muted-foreground">
-            Testa t.ex. <Link to="/sok" search={{ q: "Gyökeres" }} className="text-primary underline">Gyökeres</Link>,{" "}
-            <Link to="/sok" search={{ q: "Arteta" }} className="text-primary underline">Arteta</Link> eller{" "}
-            <Link to="/sok" search={{ q: "Allsvenskan" }} className="text-primary underline">Allsvenskan</Link>
-          </p>
         </div>
       </section>
 
@@ -175,10 +170,18 @@ function Index() {
       </div>
 
       <Section title={TABS.find((t) => t.key === tab)!.label} right={<span className="text-xs text-muted-foreground">Källa: Transfermarkt</span>}>
-        {tab === "world" && <PlayerList ids={WORLD_PLAYERS} />}
-        {tab === "sweden" && <PlayerList ids={SWEDEN_PLAYERS} />}
-        {tab === "clubs" && <ClubList />}
-        {tab === "form" && <FormList />}
+        <div className={tab === "world" ? "block" : "hidden"}>
+          <PlayerList ids={WORLD_PLAYERS} />
+        </div>
+        <div className={tab === "sweden" ? "block" : "hidden"}>
+          <PlayerList ids={SWEDEN_PLAYERS} />
+        </div>
+        <div className={tab === "clubs" ? "block" : "hidden"}>
+          <ClubList />
+        </div>
+        <div className={tab === "form" ? "block" : "hidden"}>
+          <FormList />
+        </div>
       </Section>
 
       <p className="mt-10 text-center text-xs text-muted-foreground">

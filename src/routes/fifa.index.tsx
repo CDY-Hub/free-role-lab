@@ -16,6 +16,7 @@ export const Route = createFileRoute("/fifa/")({
 });
 
 const WC_YEARS: { year: number; host: string }[] = [
+  { year: 2026, host: "USA / Kanada / Mexiko" },
   { year: 2022, host: "Qatar" }, { year: 2018, host: "Ryssland" }, { year: 2014, host: "Brasilien" },
   { year: 2010, host: "Sydafrika" }, { year: 2006, host: "Tyskland" }, { year: 2002, host: "Sydkorea/Japan" },
   { year: 1998, host: "Frankrike" }, { year: 1994, host: "USA" }, { year: 1990, host: "Italien" },

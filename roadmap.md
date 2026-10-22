@@ -2,19 +2,24 @@
 
 ## Matcher / livescore
 - [x] /matcher-sida med dagens matcher, liveresultat och dagnavigering
-- [x] Stöd för egen livescore-server (LIVESCORE_API_URL) + football-data.org (FOOTBALL_DATA_TOKEN)
-- [ ] Användaren driftar livescore-servern (paket i Files/livescore-server) och ger oss adressen
-- [ ] Användaren lägger in FOOTBALL_DATA_TOKEN (nyckel från football-data.org)
+- [x] Integrerat stöd för api-football.com (API-Sports v3) med fokus på Top 5 ligorna, liga cuperna, Champions League & Allsvenskan
+- [x] Sortering efter prioriterade ligor (UCL, UEL, Premier League, LaLiga, Serie A, Allsvenskan m.fl.)
+- [x] Stöd för football-data.org (FOOTBALL_DATA_TOKEN) + egen livescore-server (LIVESCORE_API_URL)
+- [x] Förhandsvisning med snygg setup-guide vid saknad API-nyckel så sidan aldrig kraschar med röd text
 
-## Sökning
-- [x] Visa Superettan och andra ligaträffar direkt och tydligt
-- [x] Undvik onödiga hämtningar vid ligasökning och filtrerade tabeller
-- [x] Verifiera ligasökning och spelarsökning
+## AI-Chatt
+- [x] Stöd för Google Gemini (GEMINI_API_KEY), OpenAI (OPENAI_API_KEY) och Lovable AI Gateway (LOVABLE_API_KEY)
+- [x] Strikt fotbolls-persona: enbart fotboll, taktik, spelare, transfers och scouting
+- [x] Direktkoppling vid frågor om bilar/livsstil: rabblar upp fotbollsstjärnors bilsamlingar (Zlatan, Ronaldo, Haaland, Messi m.fl.) samt klubbars bilsponsorskap (Bayern/Audi, Real Madrid/BMW m.fl.)
 
-## Klart: Free Role Lab-ombyggnad
-- [x] Namnbyte ScoutLab → Free Role Lab
-- [x] Exempeldata borttagen (svenska divisioner, lokala spelar-/tränarsidor)
-- [x] Startsida: 4 flikar med livedata (dyraste i världen/Sverige, mest värda klubbar, formstarkast i Europa)
-- [x] Ligatabeller gömda från startsidan – egna sidan /tabeller, sökbara via sökfältet
-- [x] FIFA-flik: VM per år (1930–2022) via Wikipedia, stylad som sajten
-- [x] UEFA-flik: alla UEFA-cuper med vinnare via Wikipedia, stylad som sajten
+## FIFA & UEFA
+- [x] VM 2026 i USA, Kanada & Mexiko tillagt i FIFA-översikten och detaljsidan
+- [x] Decennie- och säsongsväljare för Champions League & Europa League (71-72 till 79-80, 80-81 till 89-90, 90-91 till 99-00 osv)
+- [x] Komplett säsongsfakta och turneringsinformation per valt år via Wikipedia, stylat i sajtens tema
+- [x] Växling mellan decennie/säsongsväljare och historiska finaler
+
+## Sökning & Prestanda
+- [x] Fixad seghet vid flikbyten på startsidan genom servercaching (in-memory TTL) och bibehållen DOM-montering
+- [x] Borttagna söktips/förslag på startsidan
+- [x] Maximerad spelarsökning via Transfermarkt API med flersidigt hämtande och visning av alla resultat
+- [x] Utökad ligakatalog med svenska Ettan Norra/Södra, Superettan och internationella andradivisioner

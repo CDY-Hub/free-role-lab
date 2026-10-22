@@ -2,7 +2,30 @@ import { createServerFn } from "@tanstack/react-start";
 
 const BASE = "https://transfermarkt-api.fly.dev";
 
-async function tm<T = any>(path: string): Promise<T> {
+const cache = new Map<string, { data: any; expiry: number }>();
+
+function getCached<T>(key: string): T | null {
+  const item = cache.get(key);
+  if (!item) return null;
+  if (Date.now() > item.expiry) {
+    cache.delete(key);
+    return null;
+  }
+  return item.data as T;
+}
+
+function setCache<T>(key: string, data: T, ttlMs = 3600_000): void {
+  if (cache.size > 1500) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey) cache.delete(firstKey);
+  }
+  cache.set(key, { data, expiry: Date.now() + ttlMs });
+}
+
+async function tm<T = any>(path: string, ttlMs = 3600_000): Promise<T> {
+  const hit = getCached<T>(path);
+  if (hit !== null) return hit;
+
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(`${BASE}${path}`, { headers: { accept: "application/json" } });
     const body: any = await res.json().catch(() => null);
@@ -12,6 +35,7 @@ async function tm<T = any>(path: string): Promise<T> {
       continue;
     }
     if (!res.ok || !body) throw new Error(`Transfermarkt svarade ${res.status}`);
+    setCache(path, body, ttlMs);
     return body as T;
   }
   throw new Error("Transfermarkts datatjänst är tillfälligt nere eller överbelastad. Försök igen om en stund.");
@@ -28,7 +52,25 @@ const id = (d: unknown) => {
 
 export const tmSearchPlayers = createServerFn({ method: "GET" })
   .inputValidator(str)
-  .handler(async ({ data }) => (await tm<any>(`/players/search/${data}`)).results ?? []);
+  .handler(async ({ data }) => {
+    try {
+      const p1 = await tm<any>(`/players/search/${data}?page=1`).catch(() => tm<any>(`/players/search/${data}`));
+      const r1 = p1?.results ?? [];
+      // Fetch page 2 as well to return maximum available players
+      if (r1.length >= 10) {
+        try {
+          const p2 = await tm<any>(`/players/search/${data}?page=2`);
+          const r2 = p2?.results ?? [];
+          return [...r1, ...r2];
+        } catch {
+          return r1;
+        }
+      }
+      return r1;
+    } catch {
+      return [];
+    }
+  });
 
 export const tmSearchCoaches = createServerFn({ method: "GET" })
   .inputValidator(str)
@@ -116,6 +158,10 @@ const wikiTitle = (d: unknown) => {
 export const wikiPage = createServerFn({ method: "GET" })
   .inputValidator(wikiTitle)
   .handler(async ({ data }) => {
+    const cacheKey = `wiki:${data}`;
+    const hit = getCached<{ title: string; html: string }>(cacheKey);
+    if (hit) return hit;
+
     const res = await fetch(
       `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(data)}&prop=text|displaytitle&format=json&formatversion=2&redirects=1`,
       { headers: { "User-Agent": "FreeRoleLab/1.0 (fotbollsstatistik)", accept: "application/json" } },
@@ -129,7 +175,9 @@ export const wikiPage = createServerFn({ method: "GET" })
       .replace(/<a href="https:\/\/en\.wikipedia\.org/g, '<a target="_blank" rel="noopener" href="https://en.wikipedia.org')
       .replace(/src="\/\//g, 'src="https://')
       .replace(/srcset="\/\//g, 'srcset="https://');
-    return { title: body.parse.title as string, html };
+    const result = { title: body.parse.title as string, html };
+    setCache(cacheKey, result, 86_400_000);
+    return result;
   });
 
 const comp = (d: unknown) => {
