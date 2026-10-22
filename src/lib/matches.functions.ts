@@ -197,7 +197,7 @@ function getCuratedDemoMatches(date: string): MatchItem[] {
 
 export const matchesByDate = createServerFn({ method: "GET" })
   .inputValidator(dateStr)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }: { data: string }) => {
     // 1. Try api-football.com (v3)
     const apiFootball = await fromApiFootball(data);
     if (apiFootball && apiFootball.length > 0) {

@@ -99,9 +99,9 @@ function FormList() {
       retry: 1,
     })),
   });
-  const loading = tables.some((t) => t.isLoading);
+  const loading = tables.some((t: any) => t.isLoading);
   const rows: any[] = [];
-  tables.forEach((t, i) => {
+  tables.forEach((t: any, i: number) => {
     for (const r of t.data?.[0]?.rows ?? []) {
       if (!r.matches) continue;
       rows.push({

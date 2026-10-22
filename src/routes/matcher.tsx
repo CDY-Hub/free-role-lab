@@ -110,28 +110,30 @@ function MatchesPage() {
 
       <div className="space-y-6">
         {[...groups.entries()].map(([league, matches]) => (
-          <Section key={league} title={league}>
-            <ol className="divide-y">
-              {matches.map((m) => (
-                <li key={m.id} className="flex items-center gap-3 py-3">
-                  <span className="w-16 shrink-0 text-center">
-                    <StatusBadge m={m} />
-                  </span>
-                  <div className="flex flex-1 items-center justify-end gap-2 text-right">
-                    <span className="font-semibold">{m.home}</span>
-                    {m.homeLogo && <img src={m.homeLogo} alt="" className="size-5 object-contain" loading="lazy" />}
-                  </div>
-                  <span className="w-16 shrink-0 text-center font-display text-lg font-extrabold text-primary">
-                    {m.homeScore != null && m.awayScore != null ? `${m.homeScore}–${m.awayScore}` : "–"}
-                  </span>
-                  <div className="flex flex-1 items-center justify-start gap-2 text-left">
-                    {m.awayLogo && <img src={m.awayLogo} alt="" className="size-5 object-contain" loading="lazy" />}
-                    <span className="font-semibold">{m.away}</span>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </Section>
+          <div key={league}>
+            <Section title={league}>
+              <ol className="divide-y">
+                {matches.map((m) => (
+                  <li key={m.id} className="flex items-center gap-3 py-3">
+                    <span className="w-16 shrink-0 text-center">
+                      <StatusBadge m={m} />
+                    </span>
+                    <div className="flex flex-1 items-center justify-end gap-2 text-right">
+                      <span className="font-semibold">{m.home}</span>
+                      {m.homeLogo && <img src={m.homeLogo} alt="" className="size-5 object-contain" loading="lazy" />}
+                    </div>
+                    <span className="w-16 shrink-0 text-center font-display text-lg font-extrabold text-primary">
+                      {m.homeScore != null && m.awayScore != null ? `${m.homeScore}–${m.awayScore}` : "–"}
+                    </span>
+                    <div className="flex flex-1 items-center justify-start gap-2 text-left">
+                      {m.awayLogo && <img src={m.awayLogo} alt="" className="size-5 object-contain" loading="lazy" />}
+                      <span className="font-semibold">{m.away}</span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </Section>
+          </div>
         ))}
       </div>
 

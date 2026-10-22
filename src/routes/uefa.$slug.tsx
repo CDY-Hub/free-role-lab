@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { UEFA_COMPS } from "./uefa.index";
 
 export const Route = createFileRoute("/uefa/$slug")({
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (s: Record<string, unknown>): { season?: string | undefined } => ({
     season: typeof s["season"] === "string" ? s["season"] : undefined,
   }),
   loader: ({ params }: { params: any }) => {
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/uefa/$slug")({
     if (!comp) throw notFound();
     return comp;
   },
-  head: ({ loaderData }: { loaderData: any }) => {
+  head: ({ loaderData }: { loaderData?: any }) => {
     const t = loaderData ? `${loaderData.name} – UEFA – Free Role Lab` : "UEFA – Free Role Lab";
     const d = loaderData ? `${loaderData.name}: ${loaderData.desc}.` : "UEFA-tävling";
     return {

@@ -5,11 +5,11 @@ import { wikiPage } from "@/lib/tm.functions";
 const VALID = /^(19[3-9]\d|20[0-3]\d)$/;
 
 export const Route = createFileRoute("/fifa/vm/$year")({
-  loader: ({ params }) => {
+  loader: ({ params }: { params: any }) => {
     if (!VALID.test(params.year)) throw notFound();
     return { year: params.year };
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData }: { loaderData?: any }) => {
     const t = loaderData ? `VM ${loaderData.year} – Free Role Lab` : "VM – Free Role Lab";
     const d = loaderData ? `All information om fotbolls-VM ${loaderData.year}: grupper, matcher, resultat och målskyttar.` : "Fotbolls-VM";
     return { meta: [{ title: t }, { name: "description", content: d }, { property: "og:title", content: t }, { property: "og:description", content: d }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] };
