@@ -10,12 +10,12 @@ export const Route = createFileRoute("/uefa/$slug")({
   validateSearch: (s: Record<string, unknown>) => ({
     season: typeof s["season"] === "string" ? s["season"] : undefined,
   }),
-  loader: ({ params }) => {
+  loader: ({ params }: { params: any }) => {
     const comp = UEFA_COMPS.find((c) => c.slug === params.slug);
     if (!comp) throw notFound();
     return comp;
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData }: { loaderData: any }) => {
     const t = loaderData ? `${loaderData.name} – UEFA – Free Role Lab` : "UEFA – Free Role Lab";
     const d = loaderData ? `${loaderData.name}: ${loaderData.desc}.` : "UEFA-tävling";
     return {
@@ -321,7 +321,7 @@ function UefaCompPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowOverview((v) => !v)}
+            onClick={() => setShowOverview((v: boolean) => !v)}
           >
             {showOverview ? "← Tillbaka till säsongsväljaren" : "Visa alla finaler genom tiderna"}
           </Button>

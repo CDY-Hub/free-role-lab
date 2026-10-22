@@ -52,7 +52,7 @@ const id = (d: unknown) => {
 
 export const tmSearchPlayers = createServerFn({ method: "GET" })
   .inputValidator(str)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }: { data: string }) => {
     try {
       const p1 = await tm<any>(`/players/search/${data}?page=1`).catch(() => tm<any>(`/players/search/${data}`));
       const r1 = p1?.results ?? [];
@@ -74,31 +74,31 @@ export const tmSearchPlayers = createServerFn({ method: "GET" })
 
 export const tmSearchCoaches = createServerFn({ method: "GET" })
   .inputValidator(str)
-  .handler(async ({ data }) => (await tm<any>(`/coaches/search/${data}`)).results ?? []);
+  .handler(async ({ data }: { data: string }) => (await tm<any>(`/coaches/search/${data}`)).results ?? []);
 
 export const tmPlayerProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
-  .handler(async ({ data }) => tm<any>(`/players/${data}/profile`));
+  .handler(async ({ data }: { data: string }) => tm<any>(`/players/${data}/profile`));
 
 export const tmPlayerStats = createServerFn({ method: "GET" })
   .inputValidator(id)
-  .handler(async ({ data }) => (await tm<any>(`/players/${data}/stats`)).stats ?? []);
+  .handler(async ({ data }: { data: string }) => (await tm<any>(`/players/${data}/stats`)).stats ?? []);
 
 export const tmPlayerTransfers = createServerFn({ method: "GET" })
   .inputValidator(id)
-  .handler(async ({ data }) => (await tm<any>(`/players/${data}/transfers`)).transfers ?? []);
+  .handler(async ({ data }: { data: string }) => (await tm<any>(`/players/${data}/transfers`)).transfers ?? []);
 
 export const tmPlayerMatches = createServerFn({ method: "GET" })
   .inputValidator(id)
-  .handler(async ({ data }) => (await tm<any>(`/players/${data}/matches`)).matches ?? []);
+  .handler(async ({ data }: { data: string }) => (await tm<any>(`/players/${data}/matches`)).matches ?? []);
 
 export const tmCoachProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
-  .handler(async ({ data }) => tm<any>(`/coaches/${data}/profile`));
+  .handler(async ({ data }: { data: string }) => tm<any>(`/coaches/${data}/profile`));
 
 export const tmClubProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
-  .handler(async ({ data }) => tm<any>(`/clubs/${data}/profile`));
+  .handler(async ({ data }: { data: string }) => tm<any>(`/clubs/${data}/profile`));
 
 const ids = (d: unknown) => {
   if (!Array.isArray(d) || d.length === 0 || d.length > 20 || !d.every((x) => typeof x === "string" && /^\d+$/.test(x)))
@@ -123,7 +123,7 @@ async function pool<T, R>(items: T[], fn: (item: T) => Promise<R | null>, concur
 
 export const tmPlayersBatch = createServerFn({ method: "GET" })
   .inputValidator(ids)
-  .handler(async ({ data }) =>
+  .handler(async ({ data }: { data: string[] }) =>
     pool(data, async (pid) => {
       try {
         const p = await tm<any>(`/players/${pid}/profile`);
@@ -138,7 +138,7 @@ export const tmPlayersBatch = createServerFn({ method: "GET" })
 
 export const tmClubsBatch = createServerFn({ method: "GET" })
   .inputValidator(ids)
-  .handler(async ({ data }) =>
+  .handler(async ({ data }: { data: string[] }) =>
     pool(data, async (cid) => {
       try {
         const c = await tm<any>(`/clubs/${cid}/profile`);
@@ -157,7 +157,7 @@ const wikiTitle = (d: unknown) => {
 
 export const wikiPage = createServerFn({ method: "GET" })
   .inputValidator(wikiTitle)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }: { data: string }) => {
     const cacheKey = `wiki:${data}`;
     const hit = getCached<{ title: string; html: string }>(cacheKey);
     if (hit) return hit;
@@ -187,16 +187,16 @@ const comp = (d: unknown) => {
 
 export const tmCompetitionTable = createServerFn({ method: "GET" })
   .inputValidator(comp)
-  .handler(async ({ data }) => (await tm<any>(`/competitions/${data}/table`)).tables ?? []);
+  .handler(async ({ data }: { data: string }) => (await tm<any>(`/competitions/${data}/table`)).tables ?? []);
 
 export const tmCompetitionClubs = createServerFn({ method: "GET" })
   .inputValidator(comp)
-  .handler(async ({ data }) => (await tm<any>(`/competitions/${data}/clubs`)).clubs ?? []);
+  .handler(async ({ data }: { data: string }) => (await tm<any>(`/competitions/${data}/clubs`)).clubs ?? []);
 
 // Hämtar alla trupper i ligan och returnerar de mest värda spelarna (live från Transfermarkt).
 export const tmLeagueTopValues = createServerFn({ method: "GET" })
   .inputValidator(comp)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }: { data: string }) => {
     const clubs: { id: string; name: string }[] = (await tm<any>(`/competitions/${data}/clubs`)).clubs ?? [];
     const players = await pool(clubs, async (c) => {
       try {
@@ -218,4 +218,4 @@ export const tmPlayerMatchesSeason = createServerFn({ method: "GET" })
     const { playerId, seasonId } = d as Record<string, unknown>;
     return { playerId: id(playerId), seasonId: id(seasonId) };
   })
-  .handler(async ({ data }) => (await tm<any>(`/players/${data.playerId}/matches?season_id=${data.seasonId}`)).matches ?? []);
+  .handler(async ({ data }: { data: { playerId: string; seasonId: string } }) => (await tm<any>(`/players/${data.playerId}/matches?season_id=${data.seasonId}`)).matches ?? []);

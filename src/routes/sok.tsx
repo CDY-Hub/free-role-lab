@@ -58,7 +58,9 @@ function SearchPage() {
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-      <SearchBox key={q} initial={q} big />
+      <div key={q}>
+        <SearchBox initial={q} big />
+      </div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="font-display text-3xl font-bold">Resultat för "{q}"</h1>
         {players.length > 0 && (
