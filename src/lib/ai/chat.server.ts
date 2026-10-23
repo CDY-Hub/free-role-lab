@@ -87,7 +87,7 @@ export async function handleChat(request: Request) {
     apiKey,
   });
 
-  const model = openaiKey ? provider("gpt-4o-mini") : provider("gemini-2.5-flash");
+  const model = openaiKey ? provider("gpt-4o-mini") : provider("gemini-3.5-flash-lite");
 
   try {
     const result = streamText({
