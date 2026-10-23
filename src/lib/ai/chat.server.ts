@@ -89,18 +89,32 @@ export async function handleChat(request: Request) {
 
   const model = openaiKey ? provider("gpt-4o-mini") : provider("gemini-3.5-flash-lite");
 
+  // Gemini's OpenAI-compatible API does not support "reasoning" parts in history.
+  // Strip them out so multi-turn conversations work correctly.
+  const cleanMessages = messages.map((m) => ({
+    ...m,
+    parts: m.parts.filter((p: any) => p.type !== "reasoning" && p.type !== "reasoning-file"),
+  }));
+
   try {
     const result = streamText({
       model,
       system: SYSTEM,
-      messages: await convertToModelMessages(messages),
+      messages: await convertToModelMessages(cleanMessages),
       abortSignal: request.signal,
     });
 
     return result.toUIMessageStreamResponse({
       originalMessages: messages,
       sendReasoning: false,
-      onError: () => "Något gick fel med AI-svaret. Försök igen om en stund.",
+      onError: (e: any) => {
+        const status = e?.statusCode ?? e?.status;
+        if (status === 429) return "För många frågor just nu – vänta en stund och försök igen.";
+        if (status === 402) return "AI-krediterna är slut.";
+        if (status === 403) return "Åtkomst nekad till AI-tjänsten.";
+        const msg = e?.message ?? String(e ?? "");
+        return `Något gick fel med AI-svaret: ${msg.slice(0, 120)}`;
+      },
     });
   } catch (err: any) {
     return Response.json({ error: `AI-fel: ${err?.message || "Okänt fel"}` }, { status: 500 });
