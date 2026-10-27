@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { footballFetch } from "./api/football-client";
 
 export type MatchItem = {
   id: string;
@@ -14,10 +15,13 @@ export type MatchItem = {
   homeLogo?: string;
   awayLogo?: string;
   leagueLogo?: string;
+  priority?: number;
 };
 
 const dateStr = (d: unknown) => {
-  if (typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new Error("Ogiltigt datum");
+  if (typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    throw new Error("Ogiltigt datum");
+  }
   return d;
 };
 
@@ -49,30 +53,41 @@ const PRIORITY_LEAGUES: Record<number, number> = {
 
 // api-football.com / API-Sports v3
 async function fromApiFootball(date: string): Promise<MatchItem[] | null> {
-  const key = process.env["API_FOOTBALL_KEY"] || process.env["API_SPORTS_KEY"] || process.env["RAPIDAPI_KEY"];
+  const key =
+    process.env["API_FOOTBALL_KEY"] ||
+    process.env["API_SPORTS_KEY"] ||
+    process.env["RAPIDAPI_KEY"];
   if (!key) return null;
 
   try {
     const isRapid = Boolean(process.env["RAPIDAPI_KEY"]);
     const headers: Record<string, string> = isRapid
-      ? { "x-rapidapi-key": key, "x-rapidapi-host": "v3.football.api-sports.io" }
+      ? {
+          "x-rapidapi-key": key,
+          "x-rapidapi-host": "v3.football.api-sports.io",
+        }
       : { "x-apisports-key": key };
 
-    const res = await fetch(`https://v3.football.api-sports.io/fixtures?date=${date}`, {
-      headers,
-      signal: AbortSignal.timeout(20000),
-    });
+    const res = await footballFetch(
+      `https://v3.football.api-sports.io/fixtures?date=${date}`,
+      {
+        headers,
+        signal: AbortSignal.timeout(20000),
+      },
+    );
+
     if (!res.ok) return null;
+
     const body: any = await res.json().catch(() => null);
     if (!Array.isArray(body?.response)) return null;
 
-    const list = body.response.map((item: any) => {
+    const list: MatchItem[] = body.response.map((item: any) => {
       const f = item.fixture ?? {};
       const l = item.league ?? {};
       const t = item.teams ?? {};
       const g = item.goals ?? {};
-      const short = String(f.status?.short ?? "").toUpperCase();
 
+      const short = String(f.status?.short ?? "").toUpperCase();
       let status: MatchItem["status"] = "upcoming";
       if (["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "INT"].includes(short)) {
         status = "live";
@@ -81,12 +96,18 @@ async function fromApiFootball(date: string): Promise<MatchItem[] | null> {
       }
 
       const statusText =
-        short === "HT" ? "Halvtid" :
-        short === "FT" ? "Slut" :
-        short === "1H" || short === "2H" ? `${f.status?.elapsed ?? ""}'` :
-        short === "NS" ? "" : short;
+        short === "HT"
+          ? "Halvtid"
+          : short === "FT"
+            ? "Slut"
+            : short === "1H" || short === "2H"
+              ? `${f.status?.elapsed ?? ""}'`
+              : short === "NS"
+                ? ""
+                : short;
 
-      const prio = PRIORITY_LEAGUES[l.id] ?? (l.country === "Sweden" ? 50 : 10);
+      const prio =
+        PRIORITY_LEAGUES[l.id] ?? (l.country === "Sweden" ? 50 : 10);
 
       return {
         id: String(f.id ?? `${t.home?.name}-${t.away?.name}`),
@@ -106,7 +127,7 @@ async function fromApiFootball(date: string): Promise<MatchItem[] | null> {
       };
     });
 
-    list.sort((a: any, b: any) => b.priority - a.priority);
+    list.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
     return list;
   } catch {
     return null;
@@ -117,20 +138,33 @@ async function fromApiFootball(date: string): Promise<MatchItem[] | null> {
 async function fromLivescore(date: string): Promise<MatchItem[] | null> {
   const base = process.env["LIVESCORE_API_URL"];
   if (!base) return null;
+
   try {
-    const res = await fetch(`${base.replace(/\/$/, "")}/matches?date=${date}`, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(20000),
-    });
+    const res = await fetch(
+      `${base.replace(/\/$/, "")}/matches?date=${date}`,
+      {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(20000),
+      },
+    );
     if (!res.ok) return null;
+
     const body: any = await res.json().catch(() => null);
     if (!body?.matches) return null;
+
     return (body.matches as any[]).map((m) => {
       const st = String(m.status ?? "").toUpperCase();
       const status: MatchItem["status"] =
-        st === "FT" || st === "AET" || st === "PEN" ? "finished" : st === "NS" || st === "TBD" || st === "POSTP" || st === "CANC" ? "upcoming" : "live";
+        st === "FT" || st === "AET" || st === "PEN"
+          ? "finished"
+          : st === "NS" || st === "TBD" || st === "POSTP" || st === "CANC"
+            ? "upcoming"
+            : "live";
+
       const k = String(m.kickoff ?? "");
-      const kickoff = k.length >= 12 ? `${k.slice(8, 10)}:${k.slice(10, 12)}` : "";
+      const kickoff =
+        k.length >= 12 ? `${k.slice(8, 10)}:${k.slice(10, 12)}` : "";
+
       return {
         id: String(m.match_id ?? `${m.home}-${m.away}`),
         league: String(m.league ?? "Okänd liga"),
@@ -152,17 +186,30 @@ async function fromLivescore(date: string): Promise<MatchItem[] | null> {
 async function fromFootballData(date: string): Promise<MatchItem[] | null> {
   const token = process.env["FOOTBALL_DATA_TOKEN"];
   if (!token) return null;
+
   try {
-    const res = await fetch(`https://api.football-data.org/v4/matches?dateFrom=${date}&dateTo=${date}`, {
-      headers: { "X-Auth-Token": token, accept: "application/json" },
-      signal: AbortSignal.timeout(20000),
-    });
+    const res = await fetch(
+      `https://api.football-data.org/v4/matches?dateFrom=${date}&dateTo=${date}`,
+      {
+        headers: {
+          "X-Auth-Token": token,
+          accept: "application/json",
+        },
+        signal: AbortSignal.timeout(20000),
+      },
+    );
     if (!res.ok) return null;
+
     const body: any = await res.json().catch(() => null);
     return ((body?.matches ?? []) as any[]).map((m) => {
       const st = String(m.status ?? "").toUpperCase();
       const status: MatchItem["status"] =
-        st === "FINISHED" ? "finished" : st === "IN_PLAY" || st === "PAUSED" ? "live" : "upcoming";
+        st === "FINISHED"
+          ? "finished"
+          : st === "IN_PLAY" || st === "PAUSED"
+            ? "live"
+            : "upcoming";
+
       return {
         id: String(m.id),
         league: String(m.competition?.name ?? "Okänd liga"),
@@ -171,7 +218,8 @@ async function fromFootballData(date: string): Promise<MatchItem[] | null> {
         homeScore: num(m.score?.fullTime?.home),
         awayScore: num(m.score?.fullTime?.away),
         status,
-        statusText: st === "IN_PLAY" ? "LIVE" : st === "PAUSED" ? "HT" : st,
+        statusText:
+          st === "IN_PLAY" ? "LIVE" : st === "PAUSED" ? "HT" : st,
         kickoff: typeof m.utcDate === "string" ? m.utcDate : "",
       };
     });
@@ -182,16 +230,116 @@ async function fromFootballData(date: string): Promise<MatchItem[] | null> {
 
 function getCuratedDemoMatches(date: string): MatchItem[] {
   return [
-    { id: "ucl-1", league: "UEFA Champions League", home: "Real Madrid", away: "Bayern München", homeScore: 2, awayScore: 1, status: "finished", statusText: "Slut", kickoff: `${date}T20:00:00Z` },
-    { id: "ucl-2", league: "UEFA Champions League", home: "Arsenal", away: "Paris Saint-Germain", homeScore: 2, awayScore: 0, status: "finished", statusText: "Slut", kickoff: `${date}T20:00:00Z` },
-    { id: "epl-1", league: "Premier League", home: "Liverpool", away: "Chelsea", homeScore: 2, awayScore: 1, status: "finished", statusText: "Slut", kickoff: `${date}T16:30:00Z` },
-    { id: "epl-2", league: "Premier League", home: "Manchester City", away: "Tottenham", homeScore: 1, awayScore: 1, status: "live", statusText: "78'", kickoff: `${date}T18:30:00Z` },
-    { id: "laliga-1", league: "LaLiga", home: "Barcelona", away: "Sevilla", homeScore: 5, awayScore: 1, status: "finished", statusText: "Slut", kickoff: `${date}T21:00:00Z` },
-    { id: "laliga-2", league: "LaLiga", home: "Atlético Madrid", away: "Real Sociedad", homeScore: 1, awayScore: 0, status: "upcoming", statusText: "21:00", kickoff: `${date}T21:00:00Z` },
-    { id: "allsv-1", league: "Allsvenskan", home: "Malmö FF", away: "AIK", homeScore: 2, awayScore: 1, status: "finished", statusText: "Slut", kickoff: `${date}T15:00:00Z` },
-    { id: "allsv-2", league: "Allsvenskan", home: "Hammarby", away: "Djurgården", homeScore: 2, awayScore: 0, status: "finished", statusText: "Slut", kickoff: `${date}T17:30:00Z` },
-    { id: "seriea-1", league: "Serie A", home: "Inter", away: "Juventus", homeScore: 4, awayScore: 4, status: "finished", statusText: "Slut", kickoff: `${date}T19:45:00Z` },
-    { id: "buli-1", league: "Bundesliga", home: "Bayer Leverkusen", away: "Eintracht Frankfurt", homeScore: 2, awayScore: 1, status: "finished", statusText: "Slut", kickoff: `${date}T14:30:00Z` },
+    {
+      id: "ucl-1",
+      league: "UEFA Champions League",
+      home: "Real Madrid",
+      away: "Bayern München",
+      homeScore: 2,
+      awayScore: 1,
+      status: "finished",
+      statusText: "Slut",
+      kickoff: `${date}T20:00:00Z`,
+    },
+    {
+      id: "ucl-2",
+      league: "UEFA Champions League",
+      home: "Arsenal",
+      away: "Paris Saint-Germain",
+      homeScore: 2,
+      awayScore: 0,
+      status: "finished",
+      statusText: "Slut",
+      kickoff: `${date}T20:00:00Z`,
+    },
+    {
+      id: "epl-1",
+      league: "Premier League",
+      home: "Liverpool",
+      away: "Chelsea",
+      homeScore: 2,
+      awayScore: 1,
+      status: "finished",
+      statusText: "Slut",
+      kickoff: `${date}T16:30:00Z`,
+    },
+    {
+      id: "epl-2",
+      league: "Premier League",
+      home: "Manchester City",
+      away: "Tottenham",
+      homeScore: 1,
+      awayScore: 1,
+      status: "live",
+      statusText: "78'",
+      kickoff: `${date}T18:30:00Z`,
+    },
+    {
+      id: "laliga-1",
+      league: "LaLiga",
+      home: "Barcelona",
+      away: "Sevilla",
+      homeScore: 5,
+      awayScore: 1,
+      status: "finished",
+      statusText: "Slut",
+      kickoff: `${date}T21:00:00Z`,
+    },
+    {
+      id: "laliga-2",
+      league: "LaLiga",
+      home: "Atlético Madrid",
+      away: "Real Sociedad",
+      homeScore: 1,
+      awayScore: 0,
+      status: "upcoming",
+      statusText: "21:00",
+      kickoff: `${date}T21:00:00Z`,
+    },
+    {
+      id: "allsv-1",
+      league: "Allsvenskan",
+      home: "Malmö FF",
+      away: "AIK",
+      homeScore: 2,
+      awayScore: 1,
+      status: "finished",
+      statusText: "Slut",
+      kickoff: `${date}T15:00:00Z`,
+    },
+    {
+      id: "allsv-2",
+      league: "Allsvenskan",
+      home: "Hammarby",
+      away: "Djurgården",
+      homeScore: 2,
+      awayScore: 0,
+      status: "finished",
+      statusText: "Slut",
+      kickoff: `${date}T17:30:00Z`,
+    },
+    {
+      id: "seriea-1",
+      league: "Serie A",
+      home: "Inter",
+      away: "Juventus",
+      homeScore: 4,
+      awayScore: 4,
+      status: "finished",
+      statusText: "Slut",
+      kickoff: `${date}T19:45:00Z`,
+    },
+    {
+      id: "buli-1",
+      league: "Bundesliga",
+      home: "Bayer Leverkusen",
+      away: "Eintracht Frankfurt",
+      homeScore: 2,
+      awayScore: 1,
+      status: "finished",
+      statusText: "Slut",
+      kickoff: `${date}T14:30:00Z`,
+    },
   ];
 }
 
@@ -201,22 +349,34 @@ export const matchesByDate = createServerFn({ method: "GET" })
     // 1. Try api-football.com (v3)
     const apiFootball = await fromApiFootball(data);
     if (apiFootball && apiFootball.length > 0) {
-      return { source: "api-football" as const, matches: apiFootball, isLiveSource: true };
+      return {
+        source: "api-football" as const,
+        matches: apiFootball,
+        isLiveSource: true,
+      };
     }
 
     // 2. Try custom livescore server
     const ls = await fromLivescore(data);
     if (ls && ls.length > 0) {
-      return { source: "livescore" as const, matches: ls, isLiveSource: true };
+      return {
+        source: "livescore" as const,
+        matches: ls,
+        isLiveSource: true,
+      };
     }
 
     // 3. Try football-data.org
     const fd = await fromFootballData(data);
     if (fd && fd.length > 0) {
-      return { source: "football-data" as const, matches: fd, isLiveSource: true };
+      return {
+        source: "football-data" as const,
+        matches: fd,
+        isLiveSource: true,
+      };
     }
 
-    // 4. Graceful fallback with top matches and clear config guidance (avoids breaking with red error)
+    // 4. Graceful fallback with top matches and clear config guidance
     return {
       source: "preview" as const,
       matches: getCuratedDemoMatches(data),
