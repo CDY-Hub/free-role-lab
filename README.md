@@ -1,8 +1,10 @@
+Free Role Lab
+
 En fotbollsplattform som kombinerar liveresultat, spelar- och tränardata och en AI-assistent. Tänk Forza Fotboll/Flashscore, Transfermarkt och Football Manager-scouting i ett, med målet att även täcka lägre svenska divisioner.
 
 Live-demo: https://pitch-brain-hub.vercel.app
 
-Skärmbild av Pitch Brain Hub
+Skärmbild av Free Role Lab
 
 Status: tidigt skede. Projektet är under aktiv utveckling och inte färdigt. Det är ett lärprojekt för att öva på moderna webbverktyg, API-integrationer, generativ AI och driftsättning. Demon kan vara ofullständig eller ändras.
 
@@ -29,8 +31,8 @@ Projektet är byggt med AI-stödd utveckling i Lovable. Jag formulerar kraven, g
 
 Kom igång lokalt
 bash
-git clone https://github.com/CDY-Hub/pitch-brain-hub.git
-cd pitch-brain-hub
+git clone <repo-url>
+cd <repo-mappen>
 npm install
 cp .env.example .env   # fyll i egna nycklar
 npm run dev
