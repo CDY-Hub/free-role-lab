@@ -1,32 +1,55 @@
-# Pitch Brain Hub
+En fotbollsplattform som kombinerar liveresultat, spelar- och tränardata och en AI-assistent. Tänk Forza Fotboll/Flashscore, Transfermarkt och Football Manager-scouting i ett, med målet att även täcka lägre svenska divisioner.
 
-Jag vill skapa en hemsida, tänk en kombination av Forza fotboll/Flashscore och transfermarket, tänk som football manager spelet där det finns riktiga scouter, fotbollsspelare som spelar i svenska divison 3 osv
+Live-demo: https://pitch-brain-hub.vercel.app
 
-Man ska kunna i princip söka på vilken spelare som helst, och på spelarens sida ska man kunna se tidigare matcher, prestation, varenda detalj och information ska finnas med
+Skärmbild av Pitch Brain Hub
 
-Hemsidan ska vara vit och man ska kunna ändra till mörk, vit sida ska ha svart och blåa detaljer och svart sida ska ha vit och blåa detaljer
+Status: tidigt skede. Projektet är under aktiv utveckling och inte färdigt. Det är ett lärprojekt för att öva på moderna webbverktyg, API-integrationer, generativ AI och driftsättning. Demon kan vara ofullständig eller ändras.
 
-Söker man efter tränare ska det komma i princip allt om den tränaren, lite kort information om prestationer och klubbar samt tidigare erfarenheter som spelare, vissa tränare har varit fotbollsspelare.
+Vision och funktioner
 
-Det ska finnas en AI integrerad chat som man kan fråga vad som helst inom fotboll och enbart fotboll, frågar man den om bilar så vet den ingenting om det men att den kan visa upp vilka bilar fotbollsspelare föredrar att köra eller äger, exempelvis i bayern munchen får spelare en varsin audi eftersom audi och bayern har partnerskap
+Det här är målbilden. Delar av den är byggda, resten är på vägen.
 
-This project was built with [Lovable](https://lovable.dev).
+Liveresultat från API-Football: Top 5-ligorna, cuper, Champions League och Allsvenskan.
+Sök på spelare och tränare. Spelarsidan ska visa tidigare matcher och prestationer. Tränarsidan ska visa klubbar och bakgrund, inklusive tidigare spelarkarriär.
+AI-chatt som bara svarar på fotboll. Frågor utanför fotboll avvisas. Chatten drivs av Gemini (OpenAI kan användas som alternativ).
+Ljust och mörkt läge med blå accentfärg.
+Teknik
+Område	Val
+Frontend	Vite, TypeScript, shadcn/ui
+Data	API-Football v3, football-data.org (alternativ)
+AI	Google Gemini API
+Kvalitet	Vitest, ESLint, Prettier
+Paket	Bun / npm
+Driftsättning	Vercel
+Utveckling	Lovable med AI-stödd kodgenerering
+Så här fungerar arbetet
 
-## Build with Lovable
+Projektet är byggt med AI-stödd utveckling i Lovable. Jag formulerar kraven, granskar den genererade koden, felsöker och styr arkitekturen. Hemligheter ligger aldrig i repot utan hanteras som miljövariabler hos driftsättningen.
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/df95d308-627b-476b-8302-7a05cc872694).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+Kom igång lokalt
+bash
+git clone https://github.com/CDY-Hub/pitch-brain-hub.git
+cd pitch-brain-hub
+npm install
+cp .env.example .env   # fyll i egna nycklar
 npm run dev
-```
+Miljövariabler
+
+Kopiera .env.example till .env och fyll i dina egna värden. Checka aldrig in .env.
+
+Variabel	Används till
+API_FOOTBALL_KEY	Liveresultat och matchdata (API-Football)
+FOOTBALL_DATA_TOKEN	Alternativ datakälla (football-data.org)
+LIVESCORE_API_URL	Egen livescore-server (valfritt)
+GEMINI_API_KEY	AI-chatten (Gemini)
+OPENAI_API_KEY	AI-chatten, alternativ leverantör
+LOVABLE_API_KEY	Lovables AI-gateway (valfritt)
+Roadmap
+Fler divisioner, bland annat svenska division 1–3
+Transferdata och trupphantering
+Fördjupade spelarprofiler med matchhistorik
+Mer testtäckning och en automatiserad pipeline med GitHub Actions
+Kontakt
+
+Christian D'Amico Yachouh, Junior DevOps & Systemadministratör https://github.com/CDY-Hub · christian.damicoyachouh@gmail.com
