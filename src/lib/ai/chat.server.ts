@@ -187,7 +187,9 @@ export async function handleChat(request: Request) {
   });
 
   const geminiModel = process.env["GEMINI_MODEL"] || "gemini-3.5-flash-lite";
-  const model = openaiKey ? provider("gpt-4o-mini") : provider(geminiModel);
+  // Viktigt: .chat() använder /chat/completions. Standardanropet provider(...) använder
+  // Responses-API:t, som Googles OpenAI-kompatibla endpoint inte stödjer.
+  const model = openaiKey ? provider.chat("gpt-4o-mini") : provider.chat(geminiModel);
 
   const cleanMessages = stripReasoningParts(messages);
 
@@ -206,7 +208,10 @@ export async function handleChat(request: Request) {
         const status = statusOf(e);
         if (status === 429) return "För många frågor just nu – vänta en stund och försök igen.";
         if (status === 402) return "AI-krediterna är slut.";
-        if (status === 403) return "Åtkomst nekad till AI-tjänsten.";
+        if (status === 401 || status === 403)
+          return "AI-nyckeln nekades – kontrollera GEMINI_API_KEY / OPENAI_API_KEY.";
+        if (status === 400 || status === 404)
+          return "AI-modellen eller förfrågan avvisades – kontrollera GEMINI_MODEL.";
         // Läck inte interna felmeddelanden till användaren.
         console.error("AI-fel:", messageOf(e));
         return "Något gick fel med AI-svaret.";
