@@ -188,7 +188,7 @@ export async function handleChat(request: Request) {
     apiKey,
   });
 
-  const geminiModel = process.env["GEMINI_MODEL"] || "gemini-2.5-flash-lite";
+  const geminiModel = process.env["GEMINI_MODEL"] || "gemini-3.5-flash-lite";
   // Viktigt: .chat() använder /chat/completions. Standardanropet provider(...) använder
   // Responses-API:t, som Googles OpenAI-kompatibla endpoint inte stödjer.
   const model = openaiKey ? provider.chat("gpt-4o-mini") : provider.chat(geminiModel);
