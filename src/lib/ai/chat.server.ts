@@ -78,8 +78,10 @@ function statusOf(e: unknown): number | undefined {
 }
 
 function messageOf(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  return String(e ?? "");
+  const base = e instanceof Error ? e.message : String(e ?? "");
+  // API-fel från AI SDK har ofta leverantörens svarstext i responseBody (t.ex. Googles förklaring).
+  const body = (e as { responseBody?: unknown } | null)?.responseBody;
+  return typeof body === "string" && body.trim() ? `${base} – ${body}` : base;
 }
 
 function hasTooLongText(messages: UIMessage[]): boolean {
