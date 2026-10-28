@@ -208,12 +208,13 @@ export async function handleChat(request: Request) {
         const status = statusOf(e);
         if (status === 429) return "För många frågor just nu – vänta en stund och försök igen.";
         if (status === 402) return "AI-krediterna är slut.";
-        if (status === 401 || status === 403)
-          return "AI-nyckeln nekades – kontrollera GEMINI_API_KEY / OPENAI_API_KEY.";
+        console.error("AI-fel:", status, messageOf(e));
+        // Leverantörens felmeddelande (kortat) visas så att konfigurationsfel går att felsöka.
+        // Det innehåller aldrig din nyckel.
+        const detail = messageOf(e).replace(/\s+/g, " ").slice(0, 200);
+        if (status === 401 || status === 403) return `AI-nyckeln nekades (${status}): ${detail}`;
         if (status === 400 || status === 404)
-          return "AI-modellen eller förfrågan avvisades – kontrollera GEMINI_MODEL.";
-        // Läck inte interna felmeddelanden till användaren.
-        console.error("AI-fel:", messageOf(e));
+          return `AI-leverantören avvisade anropet (${status}): ${detail}`;
         return "Något gick fel med AI-svaret.";
       },
     });
