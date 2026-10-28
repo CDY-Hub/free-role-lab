@@ -54,7 +54,9 @@ const PRIORITY_LEAGUES: Record<number, number> = {
 // api-football.com / API-Sports v3
 async function fromApiFootball(date: string): Promise<MatchItem[] | null> {
   const key =
-    process.env["API_FOOTBALL_KEY"] || process.env["API_SPORTS_KEY"] || process.env["RAPIDAPI_KEY"];
+    process.env["API_FOOTBALL_KEY"] ||
+    process.env["API_SPORTS_KEY"] ||
+    process.env["RAPIDAPI_KEY"];
   if (!key) return null;
 
   try {
@@ -66,10 +68,13 @@ async function fromApiFootball(date: string): Promise<MatchItem[] | null> {
         }
       : { "x-apisports-key": key };
 
-    const res = await footballFetch(`https://v3.football.api-sports.io/fixtures?date=${date}`, {
-      headers,
-      signal: AbortSignal.timeout(20000),
-    });
+    const res = await footballFetch(
+      `https://v3.football.api-sports.io/fixtures?date=${date}`,
+      {
+        headers,
+        signal: AbortSignal.timeout(20000),
+      },
+    );
 
     if (!res.ok) return null;
 
@@ -101,7 +106,8 @@ async function fromApiFootball(date: string): Promise<MatchItem[] | null> {
                 ? ""
                 : short;
 
-      const prio = PRIORITY_LEAGUES[l.id] ?? (l.country === "Sweden" ? 50 : 10);
+      const prio =
+        PRIORITY_LEAGUES[l.id] ?? (l.country === "Sweden" ? 50 : 10);
 
       return {
         id: String(f.id ?? `${t.home?.name}-${t.away?.name}`),
@@ -134,10 +140,13 @@ async function fromLivescore(date: string): Promise<MatchItem[] | null> {
   if (!base) return null;
 
   try {
-    const res = await fetch(`${base.replace(/\/$/, "")}/matches?date=${date}`, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(20000),
-    });
+    const res = await fetch(
+      `${base.replace(/\/$/, "")}/matches?date=${date}`,
+      {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(20000),
+      },
+    );
     if (!res.ok) return null;
 
     const body: any = await res.json().catch(() => null);
@@ -153,7 +162,8 @@ async function fromLivescore(date: string): Promise<MatchItem[] | null> {
             : "live";
 
       const k = String(m.kickoff ?? "");
-      const kickoff = k.length >= 12 ? `${k.slice(8, 10)}:${k.slice(10, 12)}` : "";
+      const kickoff =
+        k.length >= 12 ? `${k.slice(8, 10)}:${k.slice(10, 12)}` : "";
 
       return {
         id: String(m.match_id ?? `${m.home}-${m.away}`),
@@ -194,7 +204,11 @@ async function fromFootballData(date: string): Promise<MatchItem[] | null> {
     return ((body?.matches ?? []) as any[]).map((m) => {
       const st = String(m.status ?? "").toUpperCase();
       const status: MatchItem["status"] =
-        st === "FINISHED" ? "finished" : st === "IN_PLAY" || st === "PAUSED" ? "live" : "upcoming";
+        st === "FINISHED"
+          ? "finished"
+          : st === "IN_PLAY" || st === "PAUSED"
+            ? "live"
+            : "upcoming";
 
       return {
         id: String(m.id),
@@ -204,7 +218,8 @@ async function fromFootballData(date: string): Promise<MatchItem[] | null> {
         homeScore: num(m.score?.fullTime?.home),
         awayScore: num(m.score?.fullTime?.away),
         status,
-        statusText: st === "IN_PLAY" ? "LIVE" : st === "PAUSED" ? "HT" : st,
+        statusText:
+          st === "IN_PLAY" ? "LIVE" : st === "PAUSED" ? "HT" : st,
         kickoff: typeof m.utcDate === "string" ? m.utcDate : "",
       };
     });

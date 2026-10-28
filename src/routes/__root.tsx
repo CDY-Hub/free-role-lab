@@ -21,10 +21,7 @@ function NotFoundComponent() {
         <h1 className="font-display text-7xl font-bold">404</h1>
         <h2 className="mt-4 text-xl font-semibold">Sidan hittades inte</h2>
         <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-          >
+          <Link to="/" className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
             Till startsidan
           </Link>
         </div>
@@ -66,10 +63,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Free Role Lab – fotbollsdata och scouting" },
-      {
-        name: "description",
-        content: "Sök spelare och tränare, se matcher, statistik och scoutrapporter.",
-      },
+      { name: "description", content: "Sök spelare och tränare, se matcher, statistik och scoutrapporter." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

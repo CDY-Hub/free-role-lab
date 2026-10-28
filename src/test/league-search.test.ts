@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { LEAGUES, isLeagueSearch, matchingLeagues } from "@/lib/leagues";
+import { isLeagueSearch, matchingLeagues } from "@/lib/leagues";
 
 describe("League searches", () => {
-  it.each(["La liga", "la liga", "LA LIGA", "LaLiga", " la  liga ", "La-liga"])(
-    "finds the Spanish league for %s without searching people",
-    (query) => {
-      expect(matchingLeagues(query).map((league) => league.id)).toEqual(["ES1"]);
-      expect(isLeagueSearch(query)).toBe(true);
-    },
-  );
+  it.each(["La liga", "la liga", "LA LIGA", "LaLiga", " la  liga ", "La-liga"])("finds the Spanish league for %s without searching people", (query) => {
+    expect(matchingLeagues(query).map((league) => league.id)).toEqual(["ES1"]);
+    expect(isLeagueSearch(query)).toBe(true);
+  });
 
   it.each([
     ["PremierLeague", "GB1"],
@@ -25,9 +22,7 @@ describe("League searches", () => {
   });
 
   it("finds Superettan with its real Transfermarkt competition id", () => {
-    expect(matchingLeagues(" Superettan ")).toEqual([
-      { id: "SE2", name: "Superettan", country: "Sverige" },
-    ]);
+    expect(matchingLeagues(" Superettan ")).toEqual([{ id: "SE2", name: "Superettan", country: "Sverige" }]);
   });
 
   it("avoids person searches for an exact league name regardless of case", () => {
@@ -36,8 +31,8 @@ describe("League searches", () => {
     expect(isLeagueSearch("super")).toBe(false);
   });
 
-  it("only fetches the selected league while an unfiltered view retains all leagues", () => {
+  it("only fetches the selected league while an unfiltered view retains all nine", () => {
     expect(matchingLeagues("Superettan").map((league) => league.id)).toEqual(["SE2"]);
-    expect(matchingLeagues("")).toHaveLength(LEAGUES.length);
+    expect(matchingLeagues("")).toHaveLength(9);
   });
 });

@@ -1,14 +1,6 @@
 import type { ReactNode } from "react";
 
-export function Section({
-  title,
-  children,
-  right,
-}: {
-  title: string;
-  children: ReactNode;
-  right?: ReactNode;
-}) {
+export function Section({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
   return (
     <section className="rounded-xl border bg-card">
       <div className="flex items-center justify-between border-b px-4 py-3 stripe-accent">
@@ -39,19 +31,8 @@ export function InfoRow({ label, value }: { label: string; value: ReactNode }) {
 }
 
 export function RatingPill({ v }: { v: number }) {
-  const cls =
-    v >= 7.5
-      ? "bg-primary text-primary-foreground"
-      : v >= 6.8
-        ? "bg-accent text-accent-foreground"
-        : "bg-muted text-muted-foreground";
-  return (
-    <span
-      className={`inline-flex min-w-10 justify-center rounded px-1.5 py-0.5 text-xs font-bold ${cls}`}
-    >
-      {v.toFixed(1)}
-    </span>
-  );
+  const cls = v >= 7.5 ? "bg-primary text-primary-foreground" : v >= 6.8 ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground";
+  return <span className={`inline-flex min-w-10 justify-center rounded px-1.5 py-0.5 text-xs font-bold ${cls}`}>{v.toFixed(1)}</span>;
 }
 
 export function AttrBar({ name, value }: { name: string; value: number }) {
@@ -61,17 +42,11 @@ export function AttrBar({ name, value }: { name: string; value: number }) {
       <div className="h-2 flex-1 overflow-hidden rounded bg-muted">
         <div className="h-full bg-primary" style={{ width: `${(value / 20) * 100}%` }} />
       </div>
-      <span className={`w-6 text-right font-bold ${value >= 15 ? "text-primary" : ""}`}>
-        {value}
-      </span>
+      <span className={`w-6 text-right font-bold ${value >= 15 ? "text-primary" : ""}`}>{value}</span>
     </div>
   );
 }
 
 export function Badge2({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
-      {children}
-    </span>
-  );
+  return <span className="rounded bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">{children}</span>;
 }
