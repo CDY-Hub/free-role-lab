@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  loadThreads,
-  saveThreads,
-  ensureThread,
-  updateThread,
-  deleteThread,
-} from "./threads";
+import { loadThreads, saveThreads, ensureThread, updateThread, deleteThread } from "./threads";
 
 describe("threads", () => {
   beforeEach(() => {

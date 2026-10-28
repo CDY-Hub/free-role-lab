@@ -6,7 +6,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi"] },
+  { ignores: ["dist", ".output", ".vinxi", ".wrangler", "coverage", "src/routeTree.gen.ts"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
@@ -34,7 +34,15 @@ export default tseslint.config(
       ],
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      // Många API-svar är otypade för tillfället. Varna istället för att fälla CI;
+      // skärp till "error" när typerna är på plats.
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   },
   eslintPluginPrettier,
+  {
+    // Genererad shadcn/ai-elements-kod som behöver @ts-nocheck.
+    files: ["src/components/ai-elements/shimmer.tsx"],
+    rules: { "@typescript-eslint/ban-ts-comment": "off" },
+  },
 );

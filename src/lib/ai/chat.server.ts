@@ -1,9 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import {
-  convertToModelMessages,
-  streamText,
-  type UIMessage,
-} from "ai";
+import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import {
   createLovableAiGatewayRunIdFetch,
   getLovableAiGatewayRunId,
@@ -36,11 +32,71 @@ TON OCH FORMAT:
 - Var kunnig, specifik och engagerande.
 - Använd markdown (rubriker, punktlistor och tabeller) för att ge snygga och strukturerade svar.`;
 
+const MAX_MESSAGES = 40; // äldre meddelanden klipps bort innan de skickas till modellen
+const MAX_TEXT_CHARS = 4000; // max tecken per användarmeddelande
+const RATE_LIMIT_MAX = 20; // max anrop per fönster och IP
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Enkel rate limiter i minnet. På serverless gäller den per instans, så den
+ * är ett grundskydd mot missbruk – inte en garanti. Byt mot t.ex. Upstash
+ * Redis om du behöver en riktig gräns.
+ */
+export function createRateLimiter(max: number, windowMs: number) {
+  const hits = new Map<string, number[]>();
+  return function isAllowed(key: string, now: number = Date.now()): boolean {
+    const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+    if (recent.length >= max) {
+      hits.set(key, recent);
+      return false;
+    }
+    recent.push(now);
+    hits.set(key, recent);
+    if (hits.size > 5000) {
+      for (const [k, v] of hits) {
+        if (v.every((t) => now - t >= windowMs)) hits.delete(k);
+      }
+    }
+    return true;
+  };
+}
+
+const isAllowed = createRateLimiter(RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS);
+
+function clientKey(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  return forwarded?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+}
+
+function statusOf(e: unknown): number | undefined {
+  if (e && typeof e === "object") {
+    const o = e as { statusCode?: unknown; status?: unknown };
+    const s = o.statusCode ?? o.status;
+    return typeof s === "number" ? s : undefined;
+  }
+  return undefined;
+}
+
+function messageOf(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return String(e ?? "");
+}
+
+function hasTooLongText(messages: UIMessage[]): boolean {
+  return messages.some(
+    (m) =>
+      m.role === "user" &&
+      m.parts.some(
+        (p) => p.type === "text" && (p as { text: string }).text.length > MAX_TEXT_CHARS,
+      ),
+  );
+}
+
 export function stripReasoningParts(messages: UIMessage[]): UIMessage[] {
   return messages.map((m) => ({
     ...m,
     parts: m.parts.filter(
-      (p: any) => p.type !== "reasoning" && p.type !== "reasoning-file",
+      (p: { type: string }) => p.type !== "reasoning" && p.type !== "reasoning-file",
     ),
   }));
 }
@@ -55,16 +111,30 @@ export async function handleChat(request: Request) {
     return Response.json({ error: "Ogiltig förfrågan" }, { status: 400 });
   }
 
+  if (messages.length === 0) {
+    return Response.json({ error: "Ogiltig förfrågan" }, { status: 400 });
+  }
+  if (hasTooLongText(messages)) {
+    return Response.json(
+      { error: `Meddelandet är för långt (max ${MAX_TEXT_CHARS} tecken).` },
+      { status: 413 },
+    );
+  }
+  if (!isAllowed(clientKey(request))) {
+    return Response.json(
+      { error: "För många frågor just nu – vänta en stund och försök igen." },
+      { status: 429 },
+    );
+  }
+  messages = messages.slice(-MAX_MESSAGES);
+
   const lovableKey = process.env["LOVABLE_API_KEY"];
   const openaiKey = process.env["OPENAI_API_KEY"];
-  const geminiKey =
-    process.env["GEMINI_API_KEY"] ||
-    "AQ.Ab8RN6Il7gg9-osI7HvFj_eDrBl8lQjP171i-exIE6i62wyLvA";
+  // Ingen inbyggd reservnyckel: nycklar ska bara komma från miljövariabler.
+  const geminiKey = process.env["GEMINI_API_KEY"];
 
   if (lovableKey) {
-    const runIdFetch = createLovableAiGatewayRunIdFetch(
-      getLovableAiGatewayRunId(request),
-    );
+    const runIdFetch = createLovableAiGatewayRunIdFetch(getLovableAiGatewayRunId(request));
     const provider = createOpenAI({
       baseURL: "https://ai.gateway.lovable.dev/v1",
       apiKey: lovableKey,
@@ -86,12 +156,10 @@ export async function handleChat(request: Request) {
       result.toUIMessageStreamResponse({
         originalMessages: messages,
         sendReasoning: true,
-        onError: (e: any) => {
-          const status = e?.statusCode ?? e?.status;
-          if (status === 429)
-            return "För många frågor just nu – vänta en stund och försök igen.";
-          if (status === 402)
-            return "AI-krediterna är slut. Fyll på i arbetsytans inställningar.";
+        onError: (e: unknown) => {
+          const status = statusOf(e);
+          if (status === 429) return "För många frågor just nu – vänta en stund och försök igen.";
+          if (status === 402) return "AI-krediterna är slut. Fyll på i arbetsytans inställningar.";
           if (status === 403) return "Åtkomst nekad till AI-tjänsten.";
           return "Något gick fel med AI-svaret.";
         },
@@ -100,13 +168,12 @@ export async function handleChat(request: Request) {
     );
   }
 
-  // Fallback to OpenAI or Gemini OpenAI-compatible API
+  // Reserv: OpenAI eller Gemini via OpenAI-kompatibelt API
   const apiKey = openaiKey || geminiKey;
   if (!apiKey) {
     return Response.json(
       {
-        error:
-          "AI är inte konfigurerat. Lägg till GEMINI_API_KEY eller OPENAI_API_KEY i .env.",
+        error: "AI är inte konfigurerat. Lägg till GEMINI_API_KEY eller OPENAI_API_KEY i .env.",
       },
       { status: 500 },
     );
@@ -119,9 +186,8 @@ export async function handleChat(request: Request) {
     apiKey,
   });
 
-  const model = openaiKey
-    ? provider("gpt-4o-mini")
-    : provider("gemini-3.5-flash-lite");
+  const geminiModel = process.env["GEMINI_MODEL"] || "gemini-3.5-flash-lite";
+  const model = openaiKey ? provider("gpt-4o-mini") : provider(geminiModel);
 
   const cleanMessages = stripReasoningParts(messages);
 
@@ -136,20 +202,18 @@ export async function handleChat(request: Request) {
     return result.toUIMessageStreamResponse({
       originalMessages: messages,
       sendReasoning: false,
-      onError: (e: any) => {
-        const status = e?.statusCode ?? e?.status;
-        if (status === 429)
-          return "För många frågor just nu – vänta en stund och försök igen.";
+      onError: (e: unknown) => {
+        const status = statusOf(e);
+        if (status === 429) return "För många frågor just nu – vänta en stund och försök igen.";
         if (status === 402) return "AI-krediterna är slut.";
         if (status === 403) return "Åtkomst nekad till AI-tjänsten.";
-        const msg = e?.message ?? String(e ?? "");
-        return `Något gick fel med AI-svaret: ${msg.slice(0, 120)}`;
+        // Läck inte interna felmeddelanden till användaren.
+        console.error("AI-fel:", messageOf(e));
+        return "Något gick fel med AI-svaret.";
       },
     });
-  } catch (err: any) {
-    return Response.json(
-      { error: `AI-fel: ${err?.message || "Okänt fel"}` },
-      { status: 500 },
-    );
+  } catch (err: unknown) {
+    console.error("AI-fel:", messageOf(err));
+    return Response.json({ error: "Något gick fel med AI-svaret." }, { status: 500 });
   }
 }

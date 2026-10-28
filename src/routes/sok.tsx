@@ -16,13 +16,17 @@ export const Route = createFileRoute("/sok")({
       { title: "Sök spelare, tränare och ligor – Free Role Lab" },
       { name: "description", content: "Sök bland spelare, tränare och ligor från Transfermarkt." },
       { property: "og:title", content: "Sök – Free Role Lab" },
-      { property: "og:description", content: "Sök bland spelare, tränare och ligor från Transfermarkt." },
+      {
+        property: "og:description",
+        content: "Sök bland spelare, tränare och ligor från Transfermarkt.",
+      },
     ],
   }),
   component: SearchPage,
 });
 
-const eur = (v?: number | null) => (v ? (v >= 1e6 ? `€${(v / 1e6).toFixed(1)}m` : `€${Math.round(v / 1000)}k`) : "–");
+const eur = (v?: number | null) =>
+  v ? (v >= 1e6 ? `€${(v / 1e6).toFixed(1)}m` : `€${Math.round(v / 1000)}k`) : "–";
 
 function SearchPage() {
   const { q } = Route.useSearch();
@@ -78,7 +82,9 @@ function SearchPage() {
                   <span className="text-xs text-muted-foreground">{l.country}</span>
                 </Link>
                 <Button variant="outline" asChild>
-                  <Link to="/liga/$id" params={{ id: l.id }}>Öppna ligan</Link>
+                  <Link to="/liga/$id" params={{ id: l.id }}>
+                    Öppna ligan
+                  </Link>
                 </Button>
               </li>
             ))}
@@ -92,9 +98,15 @@ function SearchPage() {
             title={`Spelare (${players.length})`}
             right={<span className="text-xs text-muted-foreground">Live från Transfermarkt</span>}
           >
-            {tmPlayers.isLoading && <p className="text-sm text-muted-foreground">Söker bland spelare…</p>}
-            {tmPlayers.error && <p className="text-sm text-destructive">{(tmPlayers.error as Error).message}</p>}
-            {!tmPlayers.isLoading && players.length === 0 && <p className="text-sm text-muted-foreground">Inga spelare hittades.</p>}
+            {tmPlayers.isLoading && (
+              <p className="text-sm text-muted-foreground">Söker bland spelare…</p>
+            )}
+            {tmPlayers.error && (
+              <p className="text-sm text-destructive">{(tmPlayers.error as Error).message}</p>
+            )}
+            {!tmPlayers.isLoading && players.length === 0 && (
+              <p className="text-sm text-muted-foreground">Inga spelare hittades.</p>
+            )}
             <ul className="divide-y">
               {visiblePlayers.map((p: any) => (
                 <li key={p.id}>
@@ -105,7 +117,12 @@ function SearchPage() {
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       {p.imageUrl ? (
-                        <img src={p.imageUrl} alt="" className="size-9 rounded-full object-cover" loading="lazy" />
+                        <img
+                          src={p.imageUrl}
+                          alt=""
+                          className="size-9 rounded-full object-cover"
+                          loading="lazy"
+                        />
                       ) : (
                         <div className="flex size-9 items-center justify-center rounded-full bg-muted font-display text-xs font-bold">
                           {p.name?.slice(0, 2)}
@@ -114,7 +131,14 @@ function SearchPage() {
                       <div className="min-w-0">
                         <span className="block truncate font-semibold">{p.name}</span>
                         <span className="block truncate text-xs text-muted-foreground">
-                          {[p.position, p.club?.name, p.age ? `${p.age} år` : null, p.nationalities?.join(", ")].filter(Boolean).join(" · ")}
+                          {[
+                            p.position,
+                            p.club?.name,
+                            p.age ? `${p.age} år` : null,
+                            p.nationalities?.join(", "),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </span>
                       </div>
                     </div>
@@ -138,9 +162,15 @@ function SearchPage() {
             title={`Tränare (${coaches.length})`}
             right={<span className="text-xs text-muted-foreground">Live från Transfermarkt</span>}
           >
-            {tmCoaches.isLoading && <p className="text-sm text-muted-foreground">Söker bland tränare…</p>}
-            {tmCoaches.error && <p className="text-sm text-destructive">{(tmCoaches.error as Error).message}</p>}
-            {!tmCoaches.isLoading && coaches.length === 0 && <p className="text-sm text-muted-foreground">Inga tränare hittades.</p>}
+            {tmCoaches.isLoading && (
+              <p className="text-sm text-muted-foreground">Söker bland tränare…</p>
+            )}
+            {tmCoaches.error && (
+              <p className="text-sm text-destructive">{(tmCoaches.error as Error).message}</p>
+            )}
+            {!tmCoaches.isLoading && coaches.length === 0 && (
+              <p className="text-sm text-muted-foreground">Inga tränare hittades.</p>
+            )}
             <ul className="divide-y">
               {visibleCoaches.map((c: any) => (
                 <li key={c.id}>
