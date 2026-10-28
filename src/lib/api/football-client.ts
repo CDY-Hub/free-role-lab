@@ -22,8 +22,7 @@ function sleep(ms: number): Promise<void> {
 
 function readMinuteHeaders(res: Response): void {
   const remainingRaw =
-    res.headers.get("X-RateLimit-Remaining") ??
-    res.headers.get("x-ratelimit-remaining");
+    res.headers.get("X-RateLimit-Remaining") ?? res.headers.get("x-ratelimit-remaining");
   if (remainingRaw === null) return;
 
   const remaining = Number(remainingRaw);
@@ -52,10 +51,7 @@ async function waitForMinuteBudget(): Promise<void> {
   }
 }
 
-export async function footballFetch(
-  url: string,
-  init?: RequestInit,
-): Promise<Response> {
+export async function footballFetch(url: string, init?: RequestInit): Promise<Response> {
   await waitForMinuteBudget();
 
   let res = await fetch(url, init);

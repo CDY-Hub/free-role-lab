@@ -15,8 +15,17 @@ export type MatchItem = {
   homeLogo?: string;
   awayLogo?: string;
   leagueLogo?: string;
+  /** Landets namn (eller "World"/"Europe" för internationella tävlingar) */
+  country?: string;
+  /** URL till landets flagga */
+  countryFlag?: string;
+  /** Unik nyckel per tävling så att t.ex. italienska och brasilianska "Serie A" inte slås ihop */
+  leagueKey: string;
   priority?: number;
 };
+
+const leagueKeyOf = (id: unknown, country: unknown, name: unknown) =>
+  id != null && id !== "" ? `id-${String(id)}` : `${String(country ?? "")}-${String(name ?? "")}`;
 
 const dateStr = (d: unknown) => {
   if (typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d)) {
@@ -117,6 +126,9 @@ async function fromApiFootball(date: string): Promise<MatchItem[] | null> {
         homeLogo: t.home?.logo,
         awayLogo: t.away?.logo,
         leagueLogo: l.logo,
+        ...(typeof l.country === "string" ? { country: l.country } : {}),
+        ...(typeof l.flag === "string" ? { countryFlag: l.flag } : {}),
+        leagueKey: leagueKeyOf(l.id, l.country, l.name),
         priority: prio,
       };
     });
@@ -158,6 +170,8 @@ async function fromLivescore(date: string): Promise<MatchItem[] | null> {
       return {
         id: String(m.match_id ?? `${m.home}-${m.away}`),
         league: String(m.league ?? "Okänd liga"),
+        leagueKey: leagueKeyOf(null, m.country, m.league),
+        ...(typeof m.country === "string" ? { country: m.country } : {}),
         home: String(m.home ?? ""),
         away: String(m.away ?? ""),
         homeScore: num(m.home_scores),
@@ -199,6 +213,9 @@ async function fromFootballData(date: string): Promise<MatchItem[] | null> {
       return {
         id: String(m.id),
         league: String(m.competition?.name ?? "Okänd liga"),
+        leagueKey: leagueKeyOf(m.competition?.id, m.area?.name, m.competition?.name),
+        ...(typeof m.area?.name === "string" ? { country: m.area.name } : {}),
+        ...(typeof m.area?.flag === "string" ? { countryFlag: m.area.flag } : {}),
         home: String(m.homeTeam?.name ?? ""),
         away: String(m.awayTeam?.name ?? ""),
         homeScore: num(m.score?.fullTime?.home),
@@ -213,8 +230,21 @@ async function fromFootballData(date: string): Promise<MatchItem[] | null> {
   }
 }
 
+const flag = (code: string) => `https://flagcdn.com/w40/${code}.png`;
+
+const DEMO_COUNTRY: Record<string, { country: string; flag?: string }> = {
+  "UEFA Champions League": { country: "Europe" },
+  "Premier League": { country: "England", flag: flag("gb-eng") },
+  LaLiga: { country: "Spain", flag: flag("es") },
+  Allsvenskan: { country: "Sweden", flag: flag("se") },
+  "Serie A": { country: "Italy", flag: flag("it") },
+  Bundesliga: { country: "Germany", flag: flag("de") },
+};
+
+type DemoMatch = Omit<MatchItem, "leagueKey" | "country" | "countryFlag">;
+
 function getCuratedDemoMatches(date: string): MatchItem[] {
-  return [
+  const base: DemoMatch[] = [
     {
       id: "ucl-1",
       league: "UEFA Champions League",
@@ -326,6 +356,15 @@ function getCuratedDemoMatches(date: string): MatchItem[] {
       kickoff: `${date}T14:30:00Z`,
     },
   ];
+  return base.map((m) => {
+    const c = DEMO_COUNTRY[m.league];
+    return {
+      ...m,
+      leagueKey: leagueKeyOf(null, c?.country, m.league),
+      ...(c ? { country: c.country } : {}),
+      ...(c?.flag ? { countryFlag: c.flag } : {}),
+    };
+  });
 }
 
 export const matchesByDate = createServerFn({ method: "GET" })

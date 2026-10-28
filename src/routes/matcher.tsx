@@ -57,6 +57,26 @@ function StatusBadge({ m }: { m: MatchItem }) {
   return <span className="text-xs text-muted-foreground">{time(m)}</span>;
 }
 
+function LeagueTitle({ m }: { m: MatchItem }) {
+  return (
+    <span className="flex items-center gap-2">
+      {m.countryFlag ? (
+        <img
+          src={m.countryFlag}
+          alt={m.country ?? ""}
+          title={m.country}
+          className="h-4 w-6 rounded-sm object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <span aria-hidden="true">🌍</span>
+      )}
+      <span>{m.league}</span>
+      {m.country && <span className="text-xs font-normal text-muted-foreground">{m.country}</span>}
+    </span>
+  );
+}
+
 function MatchesPage() {
   const [date, setDate] = useState(() => iso(new Date()));
   const q = useQuery({
@@ -66,11 +86,12 @@ function MatchesPage() {
     retry: 1,
   });
 
+  // Gruppera per tävling (liga-ID), inte per namn, så att olika länders "Serie A" hålls isär.
   const groups = new Map<string, MatchItem[]>();
   for (const m of q.data?.matches ?? []) {
-    const list = groups.get(m.league) ?? [];
+    const list = groups.get(m.leagueKey) ?? [];
     list.push(m);
-    groups.set(m.league, list);
+    groups.set(m.leagueKey, list);
   }
 
   return (
@@ -140,9 +161,9 @@ function MatchesPage() {
       )}
 
       <div className="space-y-6">
-        {[...groups.entries()].map(([league, matches]) => (
-          <div key={league}>
-            <Section title={league}>
+        {[...groups.entries()].map(([key, matches]) => (
+          <div key={key}>
+            <Section title={<LeagueTitle m={matches[0]!} />}>
               <ol className="divide-y">
                 {matches.map((m) => (
                   <li key={m.id} className="flex items-center gap-3 py-3">

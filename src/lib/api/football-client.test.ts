@@ -12,9 +12,7 @@ describe("footballFetch", () => {
   });
 
   it("returnerar ok-svar direkt utan retry", async () => {
-    const mock = vi
-      .fn()
-      .mockResolvedValue(new Response("data", { status: 200 }));
+    const mock = vi.fn().mockResolvedValue(new Response("data", { status: 200 }));
     vi.stubGlobal("fetch", mock);
 
     const res = await footballFetch("https://example.test");
@@ -39,9 +37,7 @@ describe("footballFetch", () => {
   });
 
   it("returnerar 429 efter en retry om servern fortsätter svara 429", async () => {
-    const mock = vi
-      .fn()
-      .mockResolvedValue(new Response(null, { status: 429 }));
+    const mock = vi.fn().mockResolvedValue(new Response(null, { status: 429 }));
     vi.stubGlobal("fetch", mock);
 
     const promise = footballFetch("https://example.test");
