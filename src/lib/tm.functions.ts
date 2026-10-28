@@ -1,4 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
+import {
+  parseClubs,
+  parseCoaches,
+  parseMarketValue,
+  parsePlayers,
+  type TmClubHit,
+  type TmCoachHit,
+  type TmPlayerHit,
+} from "./tm-parse";
+
+export type { TmClubHit, TmCoachHit, TmPlayerHit } from "./tm-parse";
 
 // ─── Direct scraping of transfermarkt.com (the fly.dev proxy returns 403) ───
 const TM_BASE = "https://www.transfermarkt.com";
@@ -63,17 +74,7 @@ function imgUrl(src?: string): string | undefined {
   return src.startsWith("//") ? `https:${src}` : src;
 }
 
-/** Parse market value string like "€150.00m" or "€800k" → number */
-function parseMV(s?: string): number | undefined {
-  if (!s) return undefined;
-  const m = s.replace(/[€,\s]/g, "").match(/^([\d.]+)(m|k|bn)?$/i);
-  if (!m) return undefined;
-  const n = parseFloat(m[1]!);
-  if (m[2]?.toLowerCase() === "m") return Math.round(n * 1_000_000);
-  if (m[2]?.toLowerCase() === "bn") return Math.round(n * 1_000_000_000);
-  if (m[2]?.toLowerCase() === "k") return Math.round(n * 1_000);
-  return Math.round(n);
-}
+const parseMV = parseMarketValue;
 
 // ─── Input validators ────────────────────────────────────────────────────────
 const str = (d: unknown) => {
@@ -122,84 +123,199 @@ async function pool<T, R>(
   return out;
 }
 
-// ─── Player search (HTML scraping) ────────────────────────────────────────────
-function parsePlayerRows(html: string): any[] {
-  const players: any[] = [];
-  // Each player row contains /profil/spieler/<id>
-  const rowRx =
-    /\/([a-z0-9-]+)\/profil\/spieler\/(\d+).*?class="bilderrahmen[^"]*"[^>]+src="([^"]+)"/gi;
-  let m;
-  const seen = new Set<string>();
-  while ((m = rowRx.exec(html)) !== null) {
-    const slug = m[1]!;
-    const pid = m[2]!;
-    if (seen.has(pid)) continue;
-    seen.add(pid);
+// ─── Sök: lag, spelare och tränare ───────────────────────────────────────────
+export type TmSearchResult = {
+  players: TmPlayerHit[];
+  clubs: TmClubHit[];
+  coaches: TmCoachHit[];
+  meta: {
+    source: "transfermarkt" | "transfermarkt-api" | "none";
+    htmlBytes: number;
+    pagesFetched: number;
+    error?: string;
+  };
+};
 
-    // Extract name from title attribute near the same slug
-    const nameRx = new RegExp(`href="/${slug}/profil/spieler/${pid}"[^>]*>([^<]+)<`, "i");
-    const name = nameRx.exec(html)?.[1]?.trim() ?? slug;
+const asRecord = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+const asString = (v: unknown): string | undefined =>
+  typeof v === "string" && v.trim() ? v.trim() : v == null ? undefined : String(v);
+const asNumber = (v: unknown): number | undefined => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
 
-    // Position, age, market value — from nearby columns
-    const rowStart = html.lastIndexOf(`spieler/${pid}`, m.index + 20);
-    const rowEnd = html.indexOf("</tr>", m.index + 20);
-    const rowHtml = html.slice(Math.max(0, rowStart - 500), rowEnd);
+function mergeUnique<T extends { id: string }>(into: T[], more: T[]): number {
+  const seen = new Set(into.map((x) => x.id));
+  let added = 0;
+  for (const item of more) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    into.push(item);
+    added++;
+  }
+  return added;
+}
 
-    const pos = first(rowHtml, /class="zentriert"\s*>([A-Z]{1,3})</);
-    const age = parseInt(first(rowHtml, /class="zentriert"\s*>(\d{2})</) ?? "0", 10);
-    const mvStr = first(rowHtml, /class="rechts hauptlink"\s*>([^<]+)</);
-    const mv = parseMV(mvStr);
-    const imageUrl = imgUrl(m[3]);
+/** Reserv om Transfermarkts HTML inte går att läsa: den inofficiella API-tjänsten. */
+async function searchViaApi(
+  query: string,
+): Promise<{ players: TmPlayerHit[]; clubs: TmClubHit[] }> {
+  const q = encodeURIComponent(query);
+  const [p, c] = await Promise.all([
+    tmApiJson<unknown>(`/players/search/${q}`, 600_000).catch(() => null),
+    tmApiJson<unknown>(`/clubs/search/${q}`, 600_000).catch(() => null),
+  ]);
 
+  const players: TmPlayerHit[] = [];
+  const pResults = asRecord(p)["results"];
+  for (const raw of Array.isArray(pResults) ? pResults : []) {
+    const r = asRecord(raw);
+    const id = asString(r["id"]);
+    const name = asString(r["name"]);
+    if (!id || !name) continue;
+    const club = asRecord(r["club"]);
+    const clubName = asString(club["name"]);
+    const nat = r["nationality"];
     players.push({
-      id: pid,
+      id,
       name,
-      imageUrl,
-      position: pos,
-      age: age || undefined,
-      marketValue: mv,
+      position: asString(r["position"]),
+      age: asNumber(r["age"]),
+      marketValue: asNumber(r["marketValue"]),
+      club: clubName ? { id: asString(club["id"]), name: clubName } : undefined,
+      nationalities: Array.isArray(nat) ? nat.map(String) : undefined,
     });
   }
-  return players;
+
+  const clubs: TmClubHit[] = [];
+  const cResults = asRecord(c)["results"];
+  for (const raw of Array.isArray(cResults) ? cResults : []) {
+    const r = asRecord(raw);
+    const id = asString(r["id"]);
+    const name = asString(r["name"]);
+    if (!id || !name) continue;
+    clubs.push({
+      id,
+      name,
+      country: asString(r["country"]),
+      squadSize: asNumber(r["squad"]),
+      marketValue: asNumber(r["marketValue"]),
+    });
+  }
+  return { players, clubs };
 }
 
-export const tmSearchPlayers = createServerFn({ method: "GET" })
+export const tmSearchAll = createServerFn({ method: "GET" })
   .inputValidator(str)
-  .handler(async ({ data }: { data: string }) => {
+  .handler(async ({ data }: { data: string }): Promise<TmSearchResult> => {
+    const query = decodeURIComponent(data);
+    const base = `/schnellsuche/ergebnis/schnellsuche?query=${data}`;
+
+    const players: TmPlayerHit[] = [];
+    const clubs: TmClubHit[] = [];
+    const coaches: TmCoachHit[] = [];
+    let htmlBytes = 0;
+    let pagesFetched = 0;
+    let error: string | undefined;
+
     try {
-      const html = await tmFetch(`/schnellsuche/ergebnis/schnellsuche?query=${data}`);
-      return parsePlayerRows(html);
-    } catch {
-      return [];
+      const html = await tmFetch(base);
+      pagesFetched = 1;
+      htmlBytes = html.length;
+      mergeUnique(players, parsePlayers(html));
+      mergeUnique(clubs, parseClubs(html));
+      mergeUnique(coaches, parseCoaches(html));
+    } catch (e) {
+      error = e instanceof Error ? e.message : "Okänt fel mot Transfermarkt";
     }
+
+    // Fler sidor spelare (10 per sida). Slutar när en sida inte ger något nytt.
+    if (players.length >= 10) {
+      for (let page = 2; page <= 5; page++) {
+        try {
+          const html = await tmFetch(`${base}&Spieler_page=${page}`);
+          pagesFetched++;
+          if (mergeUnique(players, parsePlayers(html)) === 0) break;
+        } catch {
+          break;
+        }
+      }
+    }
+    if (clubs.length >= 10) {
+      for (let page = 2; page <= 3; page++) {
+        try {
+          const html = await tmFetch(`${base}&Verein_page=${page}`);
+          pagesFetched++;
+          if (mergeUnique(clubs, parseClubs(html)) === 0) break;
+        } catch {
+          break;
+        }
+      }
+    }
+
+    let source: TmSearchResult["meta"]["source"] =
+      players.length || clubs.length || coaches.length ? "transfermarkt" : "none";
+
+    // Reserv om HTML-läsningen inte gav några spelare eller lag.
+    if (players.length === 0 && clubs.length === 0) {
+      try {
+        const api = await searchViaApi(query);
+        mergeUnique(players, api.players);
+        mergeUnique(clubs, api.clubs);
+        if (players.length || clubs.length) source = "transfermarkt-api";
+      } catch {
+        /* behåll ursprungligt fel */
+      }
+    }
+
+    return {
+      players,
+      clubs,
+      coaches,
+      meta: {
+        source,
+        htmlBytes,
+        pagesFetched,
+        ...(error && source === "none" ? { error } : {}),
+      },
+    };
   });
 
-// ─── Coach search (HTML scraping) ─────────────────────────────────────────────
-function parseCoachRows(html: string): any[] {
-  const coaches: any[] = [];
-  const seen = new Set<string>();
-  const rx = /\/([a-z0-9-]+)\/profil\/trainer\/(\d+)/gi;
-  let m;
-  while ((m = rx.exec(html)) !== null) {
-    const slug = m[1]!;
-    const cid = m[2]!;
-    if (seen.has(cid)) continue;
-    seen.add(cid);
-
-    const nameRx = new RegExp(`href="/${slug}/profil/trainer/${cid}"[^>]*>([^<]+)<`, "i");
-    const name = nameRx.exec(html)?.[1]?.trim() ?? slug;
-
-    coaches.push({ id: cid, name });
-  }
-  return coaches;
-}
-
-export const tmSearchCoaches = createServerFn({ method: "GET" })
-  .inputValidator(str)
-  .handler(async ({ data }: { data: string }) => {
+// ─── Lagets trupp ──────────────────────────────────────────────────────────────
+export const tmClubSquad = createServerFn({ method: "GET" })
+  .inputValidator(id)
+  .handler(async ({ data }: { data: string }): Promise<TmPlayerHit[]> => {
+    // 1. Transfermarkt-sidan med detaljerad trupp
     try {
-      const html = await tmFetch(`/schnellsuche/ergebnis/schnellsuche?query=${data}`);
-      return parseCoachRows(html);
+      const html = await tmFetch(`/en/club/kader/verein/${data}/plus/1`);
+      const players = parsePlayers(html);
+      if (players.length > 0) return players;
+    } catch {
+      /* prova reserv */
+    }
+
+    // 2. Reserv: den inofficiella API-tjänsten
+    try {
+      const body = await tmApiJson<unknown>(`/clubs/${data}/players`);
+      const list = asRecord(body)["players"];
+      const out: TmPlayerHit[] = [];
+      for (const raw of Array.isArray(list) ? list : []) {
+        const r = asRecord(raw);
+        const pid = asString(r["id"]);
+        const name = asString(r["name"]);
+        if (!pid || !name) continue;
+        const nat = r["nationality"];
+        out.push({
+          id: pid,
+          name,
+          position: asString(r["position"]),
+          age: asNumber(r["age"]),
+          marketValue: asNumber(r["marketValue"]),
+          nationalities: Array.isArray(nat) ? nat.map(String) : undefined,
+        });
+      }
+      return out;
     } catch {
       return [];
     }

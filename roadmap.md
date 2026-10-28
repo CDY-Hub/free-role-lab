@@ -27,3 +27,9 @@
 - [x] Borttagna söktips/förslag på startsidan
 - [x] Maximerad spelarsökning via Transfermarkt API med flersidigt hämtande och visning av alla resultat
 - [x] Utökad ligakatalog med svenska Ettan Norra/Södra, Superettan och internationella andradivisioner
+
+## Sök & Lag
+
+- [x] Sök med flikar för Ligor, Lag, Spelare och Tränare (en gemensam Transfermarkt-sökning)
+- [x] Lagsida med trupp grupperad på position (/lag/:id), länkad från sök och ligatabeller
+- [x] Fler sidor spelarresultat och reservväg via Transfermarkt-API om HTML-läsningen misslyckas

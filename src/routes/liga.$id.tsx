@@ -177,7 +177,19 @@ function LeaguePage() {
                   <td className="py-1.5 pr-2 font-display font-bold text-muted-foreground">
                     {r.position}
                   </td>
-                  <td className="max-w-40 truncate font-semibold">{r.clubName}</td>
+                  <td className="max-w-40 truncate font-semibold">
+                    {r.clubId ? (
+                      <Link
+                        to="/lag/$id"
+                        params={{ id: String(r.clubId) }}
+                        className="hover:text-primary"
+                      >
+                        {r.clubName}
+                      </Link>
+                    ) : (
+                      r.clubName
+                    )}
+                  </td>
                   <td className="text-center">{r.matches}</td>
                   <td className="text-center">
                     {r.wins}-{r.draws}-{r.losses}
