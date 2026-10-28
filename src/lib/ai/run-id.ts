@@ -20,7 +20,8 @@ export function createLovableAiGatewayRunIdFetch(initialRunId?: string) {
   return {
     fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
-      if (runId && !headers.has(LOVABLE_AIG_RUN_ID_HEADER)) headers.set(LOVABLE_AIG_RUN_ID_HEADER, runId);
+      if (runId && !headers.has(LOVABLE_AIG_RUN_ID_HEADER))
+        headers.set(LOVABLE_AIG_RUN_ID_HEADER, runId);
       try {
         const response = await fetch(input, { ...init, headers });
         publishRunId(response.headers.get(LOVABLE_AIG_RUN_ID_HEADER) ?? undefined);
@@ -39,9 +40,17 @@ export function getLovableAiGatewayRunId(request: Request) {
   return request.headers.get(LOVABLE_AIG_RUN_ID_HEADER)?.trim() || undefined;
 }
 
-export function getLovableAiGatewayResponseHeaders(providerHeaders: HeadersInit | undefined, init?: HeadersInit) {
+export function getLovableAiGatewayResponseHeaders(
+  providerHeaders: HeadersInit | undefined,
+  init?: HeadersInit,
+) {
   const headers = new Headers(init);
-  const exposed = new Set((headers.get("Access-Control-Expose-Headers") ?? "").split(",").map((h) => h.trim()).filter(Boolean));
+  const exposed = new Set(
+    (headers.get("Access-Control-Expose-Headers") ?? "")
+      .split(",")
+      .map((h) => h.trim())
+      .filter(Boolean),
+  );
   new Headers(providerHeaders).forEach((value, name) => {
     if (name.toLowerCase().startsWith("x-lovable-aig-")) {
       headers.set(name, value);
@@ -51,7 +60,8 @@ export function getLovableAiGatewayResponseHeaders(providerHeaders: HeadersInit 
   headers.forEach((_, name) => {
     if (name.toLowerCase().startsWith("x-lovable-aig-")) exposed.add(name);
   });
-  if (exposed.size > 0) headers.set("Access-Control-Expose-Headers", Array.from(exposed).join(", "));
+  if (exposed.size > 0)
+    headers.set("Access-Control-Expose-Headers", Array.from(exposed).join(", "));
   return headers;
 }
 
@@ -65,7 +75,11 @@ export async function withLovableAiGatewayRunIdHeader(
     const headers = getLovableAiGatewayResponseHeaders(undefined, response.headers);
     new Headers(init).forEach((value, name) => headers.set(name, value));
     if (runId) headers.set(LOVABLE_AIG_RUN_ID_HEADER, runId);
-    return new Response(response.body, { status: response.status, statusText: response.statusText, headers: getLovableAiGatewayResponseHeaders(undefined, headers) });
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: getLovableAiGatewayResponseHeaders(undefined, headers),
+    });
   }
   const reader = response.body.getReader();
   const firstChunk = reader.read();
@@ -96,5 +110,9 @@ export async function withLovableAiGatewayRunIdHeader(
       return reader.cancel(reason);
     },
   });
-  return new Response(body, { status: response.status, statusText: response.statusText, headers: getLovableAiGatewayResponseHeaders(undefined, headers) });
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: getLovableAiGatewayResponseHeaders(undefined, headers),
+  });
 }

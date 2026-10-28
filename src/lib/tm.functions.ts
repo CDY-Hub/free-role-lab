@@ -6,8 +6,7 @@ const TM_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
   "Accept-Language": "en;q=0.9",
-  Accept:
-    "text/html,application/xhtml+xml,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  Accept: "text/html,application/xhtml+xml,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   Referer: "https://www.transfermarkt.com/",
 };
 
@@ -78,14 +77,12 @@ function parseMV(s?: string): number | undefined {
 
 // ─── Input validators ────────────────────────────────────────────────────────
 const str = (d: unknown) => {
-  if (typeof d !== "string" || !d.trim() || d.length > 100)
-    throw new Error("Ogiltig sökning");
+  if (typeof d !== "string" || !d.trim() || d.length > 100) throw new Error("Ogiltig sökning");
   return encodeURIComponent(d.trim());
 };
 
 const id = (d: unknown) => {
-  if (typeof d !== "string" || !/^\d+$/.test(d))
-    throw new Error("Ogiltigt id");
+  if (typeof d !== "string" || !/^\d+$/.test(d)) throw new Error("Ogiltigt id");
   return d;
 };
 
@@ -101,8 +98,7 @@ const ids = (d: unknown) => {
 };
 
 const comp = (d: unknown) => {
-  if (typeof d !== "string" || !/^[A-Z0-9]{2,6}$/.test(d))
-    throw new Error("Ogiltig serie");
+  if (typeof d !== "string" || !/^[A-Z0-9]{2,6}$/.test(d)) throw new Error("Ogiltig serie");
   return d;
 };
 
@@ -141,10 +137,7 @@ function parsePlayerRows(html: string): any[] {
     seen.add(pid);
 
     // Extract name from title attribute near the same slug
-    const nameRx = new RegExp(
-      `href="/${slug}/profil/spieler/${pid}"[^>]*>([^<]+)<`,
-      "i",
-    );
+    const nameRx = new RegExp(`href="/${slug}/profil/spieler/${pid}"[^>]*>([^<]+)<`, "i");
     const name = nameRx.exec(html)?.[1]?.trim() ?? slug;
 
     // Position, age, market value — from nearby columns
@@ -153,10 +146,7 @@ function parsePlayerRows(html: string): any[] {
     const rowHtml = html.slice(Math.max(0, rowStart - 500), rowEnd);
 
     const pos = first(rowHtml, /class="zentriert"\s*>([A-Z]{1,3})</);
-    const age = parseInt(
-      first(rowHtml, /class="zentriert"\s*>(\d{2})</) ?? "0",
-      10,
-    );
+    const age = parseInt(first(rowHtml, /class="zentriert"\s*>(\d{2})</) ?? "0", 10);
     const mvStr = first(rowHtml, /class="rechts hauptlink"\s*>([^<]+)</);
     const mv = parseMV(mvStr);
     const imageUrl = imgUrl(m[3]);
@@ -177,9 +167,7 @@ export const tmSearchPlayers = createServerFn({ method: "GET" })
   .inputValidator(str)
   .handler(async ({ data }: { data: string }) => {
     try {
-      const html = await tmFetch(
-        `/schnellsuche/ergebnis/schnellsuche?query=${data}`,
-      );
+      const html = await tmFetch(`/schnellsuche/ergebnis/schnellsuche?query=${data}`);
       return parsePlayerRows(html);
     } catch {
       return [];
@@ -198,10 +186,7 @@ function parseCoachRows(html: string): any[] {
     if (seen.has(cid)) continue;
     seen.add(cid);
 
-    const nameRx = new RegExp(
-      `href="/${slug}/profil/trainer/${cid}"[^>]*>([^<]+)<`,
-      "i",
-    );
+    const nameRx = new RegExp(`href="/${slug}/profil/trainer/${cid}"[^>]*>([^<]+)<`, "i");
     const name = nameRx.exec(html)?.[1]?.trim() ?? slug;
 
     coaches.push({ id: cid, name });
@@ -213,9 +198,7 @@ export const tmSearchCoaches = createServerFn({ method: "GET" })
   .inputValidator(str)
   .handler(async ({ data }: { data: string }) => {
     try {
-      const html = await tmFetch(
-        `/schnellsuche/ergebnis/schnellsuche?query=${data}`,
-      );
+      const html = await tmFetch(`/schnellsuche/ergebnis/schnellsuche?query=${data}`);
       return parseCoachRows(html);
     } catch {
       return [];
@@ -229,7 +212,10 @@ export const tmPlayerProfile = createServerFn({ method: "GET" })
     const html = await tmFetch(`/en/players/${data}/profile/spieler/${data}`);
 
     const name =
-      first(html, /<h1[^>]*class="[^"]*data-header__headline[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*([^<\n]+)/) ??
+      first(
+        html,
+        /<h1[^>]*class="[^"]*data-header__headline[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*([^<\n]+)/,
+      ) ??
       first(html, /<title>([^<|]+)/) ??
       data;
 
@@ -239,22 +225,17 @@ export const tmPlayerProfile = createServerFn({ method: "GET" })
     );
 
     const age = parseInt(
-      first(html, /class="[^"]*data-header__content[^"]*"[^>]*>\s*(\d{2})\s*<\/span>/) ??
-        "0",
+      first(html, /class="[^"]*data-header__content[^"]*"[^>]*>\s*(\d{2})\s*<\/span>/) ?? "0",
       10,
     );
-    const mvStr = first(
-      html,
-      /class="[^"]*tm-player-market-value[^"]*"[^>]*>([^<]+)</,
-    );
+    const mvStr = first(html, /class="[^"]*tm-player-market-value[^"]*"[^>]*>([^<]+)</);
     const marketValue = parseMV(mvStr);
     const position =
-      first(html, /class="[^"]*data-header__label[^"]*"[^>]*>Position<\/span>[^<]*<span[^>]*>([^<]+)</) ??
-      undefined;
-    const clubName = first(
-      html,
-      /class="[^"]*data-header__club[^"]*"[^>]*>\s*<[^>]+>([^<]+)<\//,
-    );
+      first(
+        html,
+        /class="[^"]*data-header__label[^"]*"[^>]*>Position<\/span>[^<]*<span[^>]*>([^<]+)</,
+      ) ?? undefined;
+    const clubName = first(html, /class="[^"]*data-header__club[^"]*"[^>]*>\s*<[^>]+>([^<]+)<\//);
     const clubId = first(html, /\/clubs\/(\d+)\/profile\/verein\//);
 
     // Return shape matches what proffs.spelare.$id.tsx expects (extra fields are undefined)
@@ -290,8 +271,7 @@ export const tmPlayerStats = createServerFn({ method: "GET" })
     const html = await tmFetch(`/en/players/${data}/stats/spieler/${data}`);
     // Parse season rows
     const stats: any[] = [];
-    const rowRx =
-      /<tr[^>]*class="[^"]*(?:odd|even)[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
+    const rowRx = /<tr[^>]*class="[^"]*(?:odd|even)[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
     let m;
     while ((m = rowRx.exec(html)) !== null) {
       const row = m[1]!;
@@ -299,7 +279,11 @@ export const tmPlayerStats = createServerFn({ method: "GET" })
       const apps = first(row, /class="zentriert"\s*>(\d+)<\/td>/);
       const goals = first(row, /class="zentriert"\s*>\s*(\d+)\s*<\/td>/);
       if (season && apps) {
-        stats.push({ season, appearances: parseInt(apps, 10), goals: goals ? parseInt(goals, 10) : 0 });
+        stats.push({
+          season,
+          appearances: parseInt(apps, 10),
+          goals: goals ? parseInt(goals, 10) : 0,
+        });
       }
     }
     return stats;
@@ -309,9 +293,7 @@ export const tmPlayerStats = createServerFn({ method: "GET" })
 export const tmPlayerTransfers = createServerFn({ method: "GET" })
   .inputValidator(id)
   .handler(async ({ data }: { data: string }) => {
-    const html = await tmFetch(
-      `/en/players/${data}/transfers/spieler/${data}`,
-    );
+    const html = await tmFetch(`/en/players/${data}/transfers/spieler/${data}`);
     const transfers: any[] = [];
     const rx =
       /class="tm-player-transfer-history-grid__club-link"[^>]*>([^<]+)<[\s\S]*?class="tm-player-transfer-history-grid__fee"[^>]*>([^<]+)</gi;
@@ -335,12 +317,13 @@ export const tmCoachProfile = createServerFn({ method: "GET" })
   .handler(async ({ data }: { data: string }): Promise<any> => {
     const html = await tmFetch(`/en/coaches/${data}/profile/trainer/${data}`);
     const name =
-      first(html, /<h1[^>]*class="[^"]*data-header__headline[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*([^<\n]+)/) ??
+      first(
+        html,
+        /<h1[^>]*class="[^"]*data-header__headline[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*([^<\n]+)/,
+      ) ??
       first(html, /<title>([^<|]+)/) ??
       data;
-    const imageUrl = imgUrl(
-      first(html, /class="data-header__profile-image"[^>]*src="([^"]+)"/),
-    );
+    const imageUrl = imgUrl(first(html, /class="data-header__profile-image"[^>]*src="([^"]+)"/));
     return {
       id: data,
       name: name?.trim(),
@@ -360,16 +343,14 @@ export const tmClubProfile = createServerFn({ method: "GET" })
   .handler(async ({ data }: { data: string }) => {
     const html = await tmFetch(`/en/clubs/${data}/profile/verein/${data}`);
     const name =
-      first(html, /<h1[^>]*class="[^"]*data-header__headline[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*([^<\n]+)/) ??
+      first(
+        html,
+        /<h1[^>]*class="[^"]*data-header__headline[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*([^<\n]+)/,
+      ) ??
       first(html, /<title>([^<|]+)/) ??
       data;
-    const image = imgUrl(
-      first(html, /class="data-header__profile-image"[^>]*src="([^"]+)"/),
-    );
-    const mvStr = first(
-      html,
-      /class="[^"]*tm-club-market-value[^"]*"[^>]*>([^<]+)</,
-    );
+    const image = imgUrl(first(html, /class="data-header__profile-image"[^>]*src="([^"]+)"/));
+    const mvStr = first(html, /class="[^"]*tm-club-market-value[^"]*"[^>]*>([^<]+)</);
     const currentMarketValue = parseMV(mvStr);
     return { id: data, name: name?.trim(), image, currentMarketValue };
   });
@@ -404,12 +385,7 @@ export const tmClubsBatch = createServerFn({ method: "GET" })
 
 // ─── Wikipedia ────────────────────────────────────────────────────────────────
 const wikiTitle = (d: unknown) => {
-  if (
-    typeof d !== "string" ||
-    !d.trim() ||
-    d.length > 150 ||
-    !/^[\w ()%,.'`\-–]+$/u.test(d.trim())
-  )
+  if (typeof d !== "string" || !d.trim() || d.length > 150 || !/^[\w ()%,.'`\-–]+$/u.test(d.trim()))
     throw new Error("Ogiltig artikel");
   return d.trim();
 };
@@ -431,8 +407,7 @@ export const wikiPage = createServerFn({ method: "GET" })
       },
     );
     const body: any = await res.json().catch(() => null);
-    if (!res.ok || !body?.parse?.text)
-      throw new Error("Kunde inte hämta artikeln från Wikipedia.");
+    if (!res.ok || !body?.parse?.text) throw new Error("Kunde inte hämta artikeln från Wikipedia.");
     let html: string = body.parse.text;
     html = html
       .replace(/href="\/wiki\//g, 'href="https://en.wikipedia.org/wiki/')
@@ -498,9 +473,8 @@ export const tmLeagueTopValues = createServerFn({ method: "GET" })
   .inputValidator(comp)
   .handler(async ({ data }: { data: string }) => {
     try {
-      const clubs: { id: string; name: string }[] = (
-        await tmApiJson<any>(`/competitions/${data}/clubs`)
-      ).clubs ?? [];
+      const clubs: { id: string; name: string }[] =
+        (await tmApiJson<any>(`/competitions/${data}/clubs`)).clubs ?? [];
       const players = await pool(clubs, async (c) => {
         try {
           const body = await tmApiJson<any>(`/clubs/${c.id}/players`);
@@ -511,9 +485,7 @@ export const tmLeagueTopValues = createServerFn({ method: "GET" })
             age: p.age,
             position: p.position,
             marketValue: p.marketValue,
-            nationality: Array.isArray(p.nationality)
-              ? p.nationality[0]
-              : p.nationality,
+            nationality: Array.isArray(p.nationality) ? p.nationality[0] : p.nationality,
             club: c.name,
           }));
         } catch {
@@ -535,19 +507,13 @@ export const tmPlayerMatchesSeason = createServerFn({ method: "GET" })
     const { playerId, seasonId } = d as Record<string, unknown>;
     return { playerId: id(playerId), seasonId: id(seasonId) };
   })
-  .handler(
-    async ({
-      data,
-    }: {
-      data: { playerId: string; seasonId: string };
-    }) => {
-      try {
-        const body = await tmApiJson<any>(
-          `/players/${data.playerId}/matches?season_id=${data.seasonId}`,
-        );
-        return body.matches ?? [];
-      } catch {
-        return [];
-      }
-    },
-  );
+  .handler(async ({ data }: { data: { playerId: string; seasonId: string } }) => {
+    try {
+      const body = await tmApiJson<any>(
+        `/players/${data.playerId}/matches?season_id=${data.seasonId}`,
+      );
+      return body.matches ?? [];
+    } catch {
+      return [];
+    }
+  });

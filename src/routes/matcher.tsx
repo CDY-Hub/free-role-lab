@@ -12,9 +12,17 @@ export const Route = createFileRoute("/matcher")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { title: "Matcher och liveresultat – Free Role Lab" },
-      { name: "description", content: "Dagens fotbollsmatcher, liveresultat och kommande matcher – uppdateras automatiskt." },
+      {
+        name: "description",
+        content:
+          "Dagens fotbollsmatcher, liveresultat och kommande matcher – uppdateras automatiskt.",
+      },
       { property: "og:title", content: "Matcher och liveresultat – Free Role Lab" },
-      { property: "og:description", content: "Dagens fotbollsmatcher, liveresultat och kommande matcher – uppdateras automatiskt." },
+      {
+        property: "og:description",
+        content:
+          "Dagens fotbollsmatcher, liveresultat och kommande matcher – uppdateras automatiskt.",
+      },
     ],
   }),
   component: MatchesPage,
@@ -44,7 +52,8 @@ function StatusBadge({ m }: { m: MatchItem }) {
         {m.statusText === "LIVE" ? "LIVE" : m.statusText}
       </span>
     );
-  if (m.status === "finished") return <span className="text-xs font-bold text-muted-foreground">Slut</span>;
+  if (m.status === "finished")
+    return <span className="text-xs font-bold text-muted-foreground">Slut</span>;
   return <span className="text-xs text-muted-foreground">{time(m)}</span>;
 }
 
@@ -67,16 +76,36 @@ function MatchesPage() {
   return (
     <main className="mx-auto max-w-5xl px-4 pb-16">
       <section className="py-10">
-        <p className="font-display text-sm font-bold tracking-widest text-primary">Uppdateras automatiskt varje minut</p>
-        <h1 className="mt-2 font-display text-5xl font-extrabold leading-none">Matcher och liveresultat</h1>
+        <p className="font-display text-sm font-bold tracking-widest text-primary">
+          Uppdateras automatiskt varje minut
+        </p>
+        <h1 className="mt-2 font-display text-5xl font-extrabold leading-none">
+          Matcher och liveresultat
+        </h1>
         <div className="mt-6 flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => setDate(shift(date, -1))} aria-label="Föregående dag">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setDate(shift(date, -1))}
+            aria-label="Föregående dag"
+          >
             <ChevronLeft className="size-4" />
           </Button>
           <span className="min-w-40 text-center font-display text-lg font-bold">
-            {date === iso(new Date()) ? "Idag" : new Date(`${date}T12:00:00Z`).toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
+            {date === iso(new Date())
+              ? "Idag"
+              : new Date(`${date}T12:00:00Z`).toLocaleDateString("sv-SE", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
           </span>
-          <Button variant="outline" size="icon" onClick={() => setDate(shift(date, 1))} aria-label="Nästa dag">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setDate(shift(date, 1))}
+            aria-label="Nästa dag"
+          >
             <ChevronRight className="size-4" />
           </Button>
           {date !== iso(new Date()) && (
@@ -96,7 +125,9 @@ function MatchesPage() {
             <span>⚡ Livescore i realtid från api-football.com</span>
           </div>
           <p className="mt-1.5 text-muted-foreground">
-            Just nu visas förhandsvisningsmatcher för Champions League, Premier League, LaLiga, Serie A och Allsvenskan. För att hämta direkt realtidsdata, lägg till din nyckel från <strong>api-football.com</strong> i miljövariablerna (eller <code>.env</code>):
+            Just nu visas förhandsvisningsmatcher för Champions League, Premier League, LaLiga,
+            Serie A och Allsvenskan. För att hämta direkt realtidsdata, lägg till din nyckel från{" "}
+            <strong>api-football.com</strong> i miljövariablerna (eller <code>.env</code>):
           </p>
           <div className="mt-3 rounded-lg border bg-background p-2.5 font-mono text-xs text-foreground">
             API_FOOTBALL_KEY=din_api_nyckel_här
@@ -120,13 +151,29 @@ function MatchesPage() {
                     </span>
                     <div className="flex flex-1 items-center justify-end gap-2 text-right">
                       <span className="font-semibold">{m.home}</span>
-                      {m.homeLogo && <img src={m.homeLogo} alt="" className="size-5 object-contain" loading="lazy" />}
+                      {m.homeLogo && (
+                        <img
+                          src={m.homeLogo}
+                          alt=""
+                          className="size-5 object-contain"
+                          loading="lazy"
+                        />
+                      )}
                     </div>
                     <span className="w-16 shrink-0 text-center font-display text-lg font-extrabold text-primary">
-                      {m.homeScore != null && m.awayScore != null ? `${m.homeScore}–${m.awayScore}` : "–"}
+                      {m.homeScore != null && m.awayScore != null
+                        ? `${m.homeScore}–${m.awayScore}`
+                        : "–"}
                     </span>
                     <div className="flex flex-1 items-center justify-start gap-2 text-left">
-                      {m.awayLogo && <img src={m.awayLogo} alt="" className="size-5 object-contain" loading="lazy" />}
+                      {m.awayLogo && (
+                        <img
+                          src={m.awayLogo}
+                          alt=""
+                          className="size-5 object-contain"
+                          loading="lazy"
+                        />
+                      )}
                       <span className="font-semibold">{m.away}</span>
                     </div>
                   </li>
@@ -139,15 +186,15 @@ function MatchesPage() {
 
       {q.data && (
         <p className="mt-10 text-center text-xs text-muted-foreground">
-          Källa: {
-            q.data.source === "api-football"
-              ? "api-football.com (Top 5 ligor, cuper & Champions League)"
-              : q.data.source === "livescore"
+          Källa:{" "}
+          {q.data.source === "api-football"
+            ? "api-football.com (Top 5 ligor, cuper & Champions League)"
+            : q.data.source === "livescore"
               ? "Egen livescore-server"
               : q.data.source === "football-data"
-              ? "football-data.org"
-              : "Free Role Lab – Förhandsvisning (Top 5 & Cuper)"
-          }.
+                ? "football-data.org"
+                : "Free Role Lab – Förhandsvisning (Top 5 & Cuper)"}
+          .
         </p>
       )}
     </main>

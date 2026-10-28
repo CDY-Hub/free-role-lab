@@ -289,7 +289,9 @@ function UefaCompPage() {
   let activeSeasonObj: SeasonItem | undefined;
 
   if (isDecadeCup && !showOverview) {
-    activeSeasonObj = activeDecade?.seasons.find((s) => s.label === selectedSeasonLabel) ?? activeDecade?.seasons[0];
+    activeSeasonObj =
+      activeDecade?.seasons.find((s) => s.label === selectedSeasonLabel) ??
+      activeDecade?.seasons[0];
     if (activeSeasonObj) {
       queryWiki = activeSeasonObj.wikiPage;
     }
@@ -304,7 +306,10 @@ function UefaCompPage() {
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <p className="text-sm text-muted-foreground">
-        <Link to="/uefa" className="text-primary underline">UEFA</Link> / {comp.name}
+        <Link to="/uefa" className="text-primary underline">
+          UEFA
+        </Link>{" "}
+        / {comp.name}
       </p>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
@@ -318,11 +323,7 @@ function UefaCompPage() {
         </div>
 
         {isDecadeCup && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowOverview((v: boolean) => !v)}
-          >
+          <Button variant="outline" size="sm" onClick={() => setShowOverview((v: boolean) => !v)}>
             {showOverview ? "← Tillbaka till säsongsväljaren" : "Visa alla finaler genom tiderna"}
           </Button>
         )}
@@ -350,7 +351,9 @@ function UefaCompPage() {
                     }`}
                   >
                     <span className="block font-display text-xl font-extrabold">{d.label}</span>
-                    <span className="text-xs text-muted-foreground">{d.seasons.length} säsonger</span>
+                    <span className="text-xs text-muted-foreground">
+                      {d.seasons.length} säsonger
+                    </span>
                   </button>
                 );
               })}
