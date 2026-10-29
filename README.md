@@ -14,7 +14,7 @@ En fotbollsplattform som kombinerar liveresultat, spelar- och tränardata och en
 
 Det här är målbilden. Delar av den är byggda, resten är på vägen.
 
-- **Liveresultat** från API-Football: Top 5-ligorna, cuper, Champions League och Allsvenskan.
+- **Matcher och liveresultat** från flera källor som kompletterar varandra: ESPN (nyckelfri) för de fem stora ligorna, Allsvenskan, Championship, 2. Bundesliga, LaLiga Hypermotion, Serie B, Ligue 2, Portugal, Nederländerna, Belgien, Skottland, Österrike och Grekland samt cuper, UEFA och FIFA. OpenLigaDB (öppet) för 3. Liga. API-Football för Ekstraklasa, schweiziska Super League och irländska Premier Division, som ESPN saknar. Sidan säger tydligt när en liga saknas för att en källa inte svarar.
 - **Sök på spelare och tränare** via Transfermarkt. Spelarsidan ska visa tidigare matcher och prestationer. Tränarsidan ska visa klubbar och bakgrund, inklusive tidigare spelarkarriär.
 - **Tabeller och ligor**: Premier League, LaLiga, Bundesliga, Serie A, Ligue 1, Allsvenskan, Liga Portugal och Eredivisie. Lägre divisioner ingår medvetet inte.
 - **FIFA och UEFA**: VM-översikt och historik för Champions League, Europa League med flera.

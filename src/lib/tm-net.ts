@@ -173,3 +173,24 @@ export async function fetchWithTimeout(
     clearTimeout(timer);
   }
 }
+
+/**
+ * Kör fn över items med högst `limit` anrop samtidigt. Ger resultaten i samma ordning och
+ * kastar aldrig själv: fn ansvarar för sina egna fel. Skonar tjänster som stryper vid skurar.
+ */
+export async function runPool<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return results;
+}
