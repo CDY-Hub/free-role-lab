@@ -207,6 +207,7 @@ function SearchPage() {
                     <Link
                       to="/lag/$id"
                       params={{ id: c.id }}
+                      search={{ n: c.name }}
                       className="flex items-center justify-between gap-3 py-2.5 text-sm transition-colors hover:text-primary"
                     >
                       <div className="flex min-w-0 items-center gap-3">
@@ -248,6 +249,7 @@ function SearchPage() {
                     <Link
                       to="/proffs/spelare/$id"
                       params={{ id: p.id }}
+                      search={{ n: p.name }}
                       className="flex items-center justify-between gap-3 py-2.5 text-sm transition-colors hover:text-primary"
                     >
                       <div className="flex min-w-0 items-center gap-3">
@@ -294,6 +296,7 @@ function SearchPage() {
                     <Link
                       to="/proffs/tranare/$id"
                       params={{ id: c.id }}
+                      search={{ n: c.name }}
                       className="flex items-center gap-3 py-2.5 text-sm transition-colors hover:text-primary"
                     >
                       <Avatar src={c.imageUrl} name={c.name} />

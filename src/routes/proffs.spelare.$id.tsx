@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Section, Stat, InfoRow, Badge2 } from "@/components/ui-bits";
+import { WikiSection } from "@/components/wiki-section";
 import {
   tmPlayerProfile,
   tmPlayerMatches,
@@ -11,6 +12,8 @@ import {
 } from "@/lib/tm.functions";
 
 export const Route = createFileRoute("/proffs/spelare/$id")({
+  validateSearch: (s: Record<string, unknown>): { n?: string | undefined } =>
+    typeof s["n"] === "string" ? { n: s["n"] } : {},
   loader: ({ params }) => tmPlayerProfile({ data: params.id }),
   head: ({ loaderData }) => {
     const t = loaderData?.name
@@ -43,6 +46,8 @@ const eur = (v?: number | null) =>
 function ProPlayer() {
   const p = Route.useLoaderData();
   const { id } = Route.useParams();
+  const { n } = Route.useSearch();
+  const playerName: string | undefined = p.name ?? n;
   const [season, setSeason] = useState<string | null>(null);
   const matches = useQuery({
     queryKey: ["tm-m", id],
@@ -74,7 +79,8 @@ function ProPlayer() {
 
   const bySeason: Record<string, any> = {};
   for (const s of stats.data ?? []) {
-    const k = s.seasonId;
+    const k = s.seasonId ?? s.season;
+    if (!k) continue;
     bySeason[k] ??= { season: k, apps: 0, goals: 0, assists: 0, min: 0, y: 0, r: 0 };
     bySeason[k].apps += s.appearances ?? 0;
     bySeason[k].goals += s.goals ?? 0;
@@ -94,7 +100,7 @@ function ProPlayer() {
         {p.imageUrl && (
           <img
             src={p.imageUrl}
-            alt={p.name}
+            alt={playerName ?? ""}
             width={96}
             height={124}
             className="h-32 w-24 rounded-lg object-cover"
@@ -105,7 +111,9 @@ function ProPlayer() {
             <Badge2>{p.position?.main}</Badge2>
             {p.nationalTeam?.name && <Badge2>Landslag: {p.nationalTeam.name}</Badge2>}
           </div>
-          <h1 className="mt-2 font-display text-5xl font-extrabold">{p.name}</h1>
+          <h1 className="mt-2 font-display text-5xl font-extrabold">
+            {playerName ?? "Okänd spelare"}
+          </h1>
           <p className="text-muted-foreground">
             {p.club?.name} · {p.age} år · {p.citizenship?.join(", ")}
           </p>
@@ -123,6 +131,15 @@ function ProPlayer() {
           )}
         </div>
       </header>
+
+      {p.unavailable && (
+        <p className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
+          Transfermarkt svarade inte just nu, så detaljerad profildata saknas. Bakgrunden nedan
+          kommer från Wikipedia.
+        </p>
+      )}
+
+      <WikiSection name={playerName} kind="player" />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="Matcher (senaste)" value={matches.isLoading ? "…" : played.length} />
@@ -206,38 +223,40 @@ function ProPlayer() {
               </table>
             </div>
           </Section>
-          <Section title="Säsongsstatistik (alla tävlingar)">
-            {stats.isLoading || stats.isPending ? (
-              <p className="text-sm text-muted-foreground">Hämtar…</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase text-muted-foreground">
-                  <tr>
-                    <th className="py-2">Säsong</th>
-                    <th>Matcher</th>
-                    <th>Mål</th>
-                    <th>Assist</th>
-                    <th>Min</th>
-                    <th>Gula</th>
-                    <th>Röda</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {seasons.slice(0, 12).map((s: any) => (
-                    <tr key={s.season}>
-                      <td className="py-2 font-bold">{s.season}</td>
-                      <td>{s.apps}</td>
-                      <td>{s.goals}</td>
-                      <td>{s.assists}</td>
-                      <td>{s.min}</td>
-                      <td>{s.y}</td>
-                      <td>{s.r}</td>
+          {seasons.length > 0 && (
+            <Section title="Säsongsstatistik (alla tävlingar)">
+              {stats.isLoading || stats.isPending ? (
+                <p className="text-sm text-muted-foreground">Hämtar…</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="py-2">Säsong</th>
+                      <th>Matcher</th>
+                      <th>Mål</th>
+                      <th>Assist</th>
+                      <th>Min</th>
+                      <th>Gula</th>
+                      <th>Röda</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Section>
+                  </thead>
+                  <tbody className="divide-y">
+                    {seasons.slice(0, 12).map((s: any) => (
+                      <tr key={s.season}>
+                        <td className="py-2 font-bold">{s.season}</td>
+                        <td>{s.apps}</td>
+                        <td>{s.goals}</td>
+                        <td>{s.assists}</td>
+                        <td>{s.min}</td>
+                        <td>{s.y}</td>
+                        <td>{s.r}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Section>
+          )}
         </div>
         <div className="space-y-6">
           <Section title="Personuppgifter">

@@ -1,8 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Section, InfoRow, Badge2 } from "@/components/ui-bits";
 import { tmCoachProfile } from "@/lib/tm.functions";
+import { WikiSection } from "@/components/wiki-section";
 
 export const Route = createFileRoute("/proffs/tranare/$id")({
+  validateSearch: (s: Record<string, unknown>): { n?: string | undefined } =>
+    typeof s["n"] === "string" ? { n: s["n"] } : {},
   loader: ({ params }) => tmCoachProfile({ data: params.id }),
   head: ({ loaderData }) => {
     const t = loaderData?.name
@@ -31,13 +34,15 @@ export const Route = createFileRoute("/proffs/tranare/$id")({
 
 function ProCoach() {
   const c = Route.useLoaderData();
+  const { n } = Route.useSearch();
+  const coachName: string | undefined = c.name ?? n;
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <header className="flex flex-wrap items-end gap-6 rounded-xl border bg-card p-6">
         {c.imageUrl && (
           <img
             src={c.imageUrl}
-            alt={c.name}
+            alt={coachName ?? ""}
             width={96}
             height={124}
             className="h-32 w-24 rounded-lg object-cover"
@@ -48,12 +53,15 @@ function ProCoach() {
             <Badge2>Tränare</Badge2>
             {c.license && <Badge2>{c.license}</Badge2>}
           </div>
-          <h1 className="mt-2 font-display text-5xl font-extrabold">{c.name}</h1>
+          <h1 className="mt-2 font-display text-5xl font-extrabold">
+            {coachName ?? "Okänd tränare"}
+          </h1>
           <p className="text-muted-foreground">
-            {c.age} år · {c.citizenship?.join(", ")}
+            {[c.age ? `${c.age} år` : null, c.citizenship?.join(", ")].filter(Boolean).join(" · ")}
           </p>
         </div>
       </header>
+      <WikiSection name={coachName} kind="coach" />
       <div className="grid gap-6 md:grid-cols-2">
         <Section title="Profil">
           <InfoRow label="Fullständigt namn" value={c.nameInHomeCountry ?? c.name} />
