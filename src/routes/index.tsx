@@ -127,7 +127,13 @@ function PlayerList({ ids }: { ids: string[] }) {
             <span className="flex-1">
               <span className="block font-display text-lg font-bold">{p.name}</span>
               <span className="text-xs text-muted-foreground">
-                {p.position} · {p.club?.name} · {p.age} år
+                {[
+                  typeof p.position === "string" ? p.position : p.position?.main,
+                  p.club?.name,
+                  p.age ? `${p.age} år` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             </span>
             <span className="font-display text-xl font-extrabold text-primary">
