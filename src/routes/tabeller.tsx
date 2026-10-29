@@ -16,7 +16,7 @@ export const Route = createFileRoute("/tabeller")({
       {
         name: "description",
         content:
-          "Aktuella tabeller för Allsvenskan, Superettan, Premier League, LaLiga, Bundesliga, Serie A och Ligue 1.",
+          "Aktuella tabeller för Premier League, LaLiga, Bundesliga, Serie A, Ligue 1, Allsvenskan, Liga Portugal och Eredivisie.",
       },
       { property: "og:title", content: "Ligatabeller – Free Role Lab" },
       { property: "og:description", content: "Aktuella tabeller från Europas största ligor." },

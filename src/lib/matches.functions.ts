@@ -1,31 +1,44 @@
 import { createServerFn } from "@tanstack/react-start";
 import { footballFetch } from "./api/football-client";
+import {
+  ESPN_COMPETITIONS,
+  apiFootballError,
+  espnUrl,
+  leagueKeyOf,
+  matchesTtlMs,
+  onlyLocalDate,
+  parseApiFootball,
+  parseEspnScoreboard,
+  shiftDate,
+  sortMatches,
+  stockholmDate,
+  type MatchItem,
+} from "./matches-parse";
+import { Breaker, Inflight, TtlCache, fetchWithTimeout } from "./tm-net";
 
-export type MatchItem = {
-  id: string;
-  league: string;
-  leagueId?: number;
-  home: string;
-  away: string;
-  homeScore: number | null;
-  awayScore: number | null;
-  status: "live" | "finished" | "upcoming";
-  statusText: string;
-  kickoff: string; // ISO eller "HH:MM"
-  homeLogo?: string;
-  awayLogo?: string;
-  leagueLogo?: string;
-  /** Landets namn (eller "World"/"Europe" för internationella tävlingar) */
-  country?: string;
-  /** URL till landets flagga */
-  countryFlag?: string;
-  /** Unik nyckel per tävling så att t.ex. italienska och brasilianska "Serie A" inte slås ihop */
-  leagueKey: string;
-  priority?: number;
+export type { MatchItem } from "./matches-parse";
+
+export type SourceName = "api-football" | "espn" | "livescore" | "football-data";
+
+export type SourceReport = {
+  source: SourceName;
+  ok: boolean;
+  count: number;
+  /** Kort förklaring på svenska när källan inte gav något. Aldrig nycklar eller hemligheter. */
+  reason?: string;
 };
 
-const leagueKeyOf = (id: unknown, country: unknown, name: unknown) =>
-  id != null && id !== "" ? `id-${String(id)}` : `${String(country ?? "")}-${String(name ?? "")}`;
+export type MatchesResult = {
+  source: SourceName | "none";
+  matches: MatchItem[];
+  isLiveSource: boolean;
+  /** Ingen nyckel finns inställd och ingen källa gav matcher. */
+  missingConfig: boolean;
+  /** Visar senast hämtade data eftersom alla källor svarade fel just nu. */
+  stale: boolean;
+  fetchedAt: string;
+  diagnostics: SourceReport[];
+};
 
 const dateStr = (d: unknown) => {
   if (typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d)) {
@@ -39,123 +52,124 @@ const num = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-const PRIORITY_LEAGUES: Record<number, number> = {
-  2: 100, // UEFA Champions League
-  3: 95, // UEFA Europa League
-  848: 90, // UEFA Conference League
-  531: 89, // UEFA Super Cup
-  39: 85, // Premier League
-  140: 80, // La Liga
-  135: 75, // Serie A
-  78: 70, // Bundesliga
-  61: 65, // Ligue 1
-  113: 60, // Allsvenskan
-  115: 55, // Superettan
-  45: 50, // FA Cup
-  48: 48, // EFL Cup
-  143: 45, // Copa del Rey
-  137: 44, // Coppa Italia
-  81: 43, // DFB-Pokal
-  66: 42, // Coupe de France
-  114: 41, // Svenska Cupen
-};
+// ─── Cache ─────────────────────────────────────────────────────────────────────
+// Utan servercache anropade varje besökare, varje minut och varje datum, källorna direkt. Då
+// tog API-Footballs dagskvot (100 anrop) slut och sidan blev tom. Nu delas ett svar mellan alla.
+const fresh = new TtlCache(200, 8 * 1024 * 1024);
+const lastGood = new TtlCache(200, 8 * 1024 * 1024);
+const inflight = new Inflight();
+const apiFootballBreaker = new Breaker();
+const espnBreaker = new Breaker();
+
+const SOURCE_TIMEOUT_MS = 8000;
+
+type Fetched = { items: MatchItem[]; report: SourceReport };
+
+function fail(source: SourceName, reason: string): Fetched {
+  return { items: [], report: { source, ok: false, count: 0, reason } };
+}
 
 // api-football.com / API-Sports v3
-async function fromApiFootball(date: string): Promise<MatchItem[] | null> {
+async function fromApiFootball(date: string): Promise<Fetched | null> {
   const key =
     process.env["API_FOOTBALL_KEY"] || process.env["API_SPORTS_KEY"] || process.env["RAPIDAPI_KEY"];
   if (!key) return null;
+  if (apiFootballBreaker.isOpen()) {
+    return fail("api-football", "Pausad en stund efter ett fel (kvot eller nyckel).");
+  }
 
   try {
-    const isRapid = Boolean(process.env["RAPIDAPI_KEY"]);
+    const isRapid = Boolean(process.env["RAPIDAPI_KEY"]) && !process.env["API_FOOTBALL_KEY"];
     const headers: Record<string, string> = isRapid
-      ? {
-          "x-rapidapi-key": key,
-          "x-rapidapi-host": "v3.football.api-sports.io",
-        }
+      ? { "x-rapidapi-key": key, "x-rapidapi-host": "v3.football.api-sports.io" }
       : { "x-apisports-key": key };
 
-    const res = await footballFetch(`https://v3.football.api-sports.io/fixtures?date=${date}`, {
-      headers,
-      signal: AbortSignal.timeout(20000),
-    });
+    const res = await footballFetch(
+      `https://v3.football.api-sports.io/fixtures?date=${date}&timezone=Europe/Stockholm`,
+      { headers, signal: AbortSignal.timeout(SOURCE_TIMEOUT_MS) },
+    );
 
-    if (!res.ok) return null;
+    if (res.status === 401 || res.status === 403) {
+      apiFootballBreaker.open(10 * 60_000);
+      return fail("api-football", "Nyckeln avvisades.");
+    }
+    if (!res.ok) return fail("api-football", `Svarade ${res.status}.`);
 
     const body: any = await res.json().catch(() => null);
-    if (!Array.isArray(body?.response)) return null;
+    const err = apiFootballError(body);
+    if (err) {
+      // 200-svar med fel: dagskvot slut, plan utan åtkomst till datumet, ogiltig nyckel m.m.
+      if (/limit|quota|token|key|suspend/i.test(err)) apiFootballBreaker.open(10 * 60_000);
+      return fail("api-football", `API-Football: ${err}`);
+    }
+    if (!Array.isArray(body?.response)) return fail("api-football", "Oväntat svar.");
 
-    const list: MatchItem[] = body.response.map((item: any) => {
-      const f = item.fixture ?? {};
-      const l = item.league ?? {};
-      const t = item.teams ?? {};
-      const g = item.goals ?? {};
-
-      const short = String(f.status?.short ?? "").toUpperCase();
-      let status: MatchItem["status"] = "upcoming";
-      if (["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "INT"].includes(short)) {
-        status = "live";
-      } else if (["FT", "AET", "PEN"].includes(short)) {
-        status = "finished";
-      }
-
-      const statusText =
-        short === "HT"
-          ? "Halvtid"
-          : short === "FT"
-            ? "Slut"
-            : short === "1H" || short === "2H"
-              ? `${f.status?.elapsed ?? ""}'`
-              : short === "NS"
-                ? ""
-                : short;
-
-      const prio = PRIORITY_LEAGUES[l.id] ?? (l.country === "Sweden" ? 50 : 10);
-
-      return {
-        id: String(f.id ?? `${t.home?.name}-${t.away?.name}`),
-        league: String(l.name ?? "Okänd liga"),
-        leagueId: l.id,
-        home: String(t.home?.name ?? "Hemmalag"),
-        away: String(t.away?.name ?? "Bortalag"),
-        homeScore: num(g.home),
-        awayScore: num(g.away),
-        status,
-        statusText,
-        kickoff: typeof f.date === "string" ? f.date : "",
-        homeLogo: t.home?.logo,
-        awayLogo: t.away?.logo,
-        leagueLogo: l.logo,
-        ...(typeof l.country === "string" ? { country: l.country } : {}),
-        ...(typeof l.flag === "string" ? { countryFlag: l.flag } : {}),
-        leagueKey: leagueKeyOf(l.id, l.country, l.name),
-        priority: prio,
-      };
-    });
-
-    list.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-    return list;
-  } catch {
-    return null;
+    const items = parseApiFootball(body);
+    return { items, report: { source: "api-football", ok: true, count: items.length } };
+  } catch (e) {
+    return fail("api-football", e instanceof Error ? e.message : "Okänt fel.");
   }
 }
 
+// ESPN: öppen resultatfeed utan nyckel. Fungerar även när ingen API-nyckel finns eller kvoten är slut.
+async function fromEspn(date: string): Promise<Fetched> {
+  if (espnBreaker.isOpen()) return fail("espn", "Pausad en stund efter ett fel.");
+
+  // Ett spann runt dagen, eftersom ESPN räknar dygn i amerikansk tid. Vi filtrerar på svensk dag efteråt.
+  const from = shiftDate(date, -1);
+  const to = shiftDate(date, 1);
+
+  let okCount = 0;
+  const all: MatchItem[] = [];
+  await Promise.all(
+    ESPN_COMPETITIONS.map(async (comp) => {
+      try {
+        const res = await fetchWithTimeout(
+          espnUrl(comp.slug, from, to),
+          { headers: { accept: "application/json" } },
+          SOURCE_TIMEOUT_MS,
+        );
+        // 400/404 = tävlingen finns inte i ESPN just nu (t.ex. ingen pågående turnering). Inget fel.
+        if (res.status === 400 || res.status === 404) {
+          okCount++;
+          return;
+        }
+        if (!res.ok) return;
+        const body = await res.json().catch(() => null);
+        if (!body) return;
+        okCount++;
+        all.push(...parseEspnScoreboard(body, comp));
+      } catch {
+        /* en tävling som hänger ska inte ta ner resten */
+      }
+    }),
+  );
+
+  if (okCount === 0) {
+    espnBreaker.open(60_000);
+    return fail("espn", "Kunde inte nå ESPN.");
+  }
+  const items = sortMatches(onlyLocalDate(all, date));
+  return { items, report: { source: "espn", ok: true, count: items.length } };
+}
+
 // Livescore-servern (egen driftad livescore-api) – används om LIVESCORE_API_URL är satt.
-async function fromLivescore(date: string): Promise<MatchItem[] | null> {
+async function fromLivescore(date: string): Promise<Fetched | null> {
   const base = process.env["LIVESCORE_API_URL"];
   if (!base) return null;
 
   try {
-    const res = await fetch(`${base.replace(/\/$/, "")}/matches?date=${date}`, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) return null;
+    const res = await fetchWithTimeout(
+      `${base.replace(/\/$/, "")}/matches?date=${date}`,
+      { headers: { accept: "application/json" } },
+      SOURCE_TIMEOUT_MS,
+    );
+    if (!res.ok) return fail("livescore", `Svarade ${res.status}.`);
 
     const body: any = await res.json().catch(() => null);
-    if (!body?.matches) return null;
+    if (!body?.matches) return fail("livescore", "Oväntat svar.");
 
-    return (body.matches as any[]).map((m) => {
+    const items = (body.matches as any[]).map((m): MatchItem => {
       const st = String(m.status ?? "").toUpperCase();
       const status: MatchItem["status"] =
         st === "FT" || st === "AET" || st === "PEN"
@@ -181,31 +195,27 @@ async function fromLivescore(date: string): Promise<MatchItem[] | null> {
         kickoff,
       };
     });
-  } catch {
-    return null;
+    return { items, report: { source: "livescore", ok: true, count: items.length } };
+  } catch (e) {
+    return fail("livescore", e instanceof Error ? e.message : "Okänt fel.");
   }
 }
 
 // football-data.org v4 – gratisnivå, kräver FOOTBALL_DATA_TOKEN.
-async function fromFootballData(date: string): Promise<MatchItem[] | null> {
+async function fromFootballData(date: string): Promise<Fetched | null> {
   const token = process.env["FOOTBALL_DATA_TOKEN"];
   if (!token) return null;
 
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://api.football-data.org/v4/matches?dateFrom=${date}&dateTo=${date}`,
-      {
-        headers: {
-          "X-Auth-Token": token,
-          accept: "application/json",
-        },
-        signal: AbortSignal.timeout(20000),
-      },
+      { headers: { "X-Auth-Token": token, accept: "application/json" } },
+      SOURCE_TIMEOUT_MS,
     );
-    if (!res.ok) return null;
+    if (!res.ok) return fail("football-data", `Svarade ${res.status}.`);
 
     const body: any = await res.json().catch(() => null);
-    return ((body?.matches ?? []) as any[]).map((m) => {
+    const items = ((body?.matches ?? []) as any[]).map((m): MatchItem => {
       const st = String(m.status ?? "").toUpperCase();
       const status: MatchItem["status"] =
         st === "FINISHED" ? "finished" : st === "IN_PLAY" || st === "PAUSED" ? "live" : "upcoming";
@@ -218,193 +228,102 @@ async function fromFootballData(date: string): Promise<MatchItem[] | null> {
         ...(typeof m.area?.flag === "string" ? { countryFlag: m.area.flag } : {}),
         home: String(m.homeTeam?.name ?? ""),
         away: String(m.awayTeam?.name ?? ""),
-        homeScore: num(m.score?.fullTime?.home),
-        awayScore: num(m.score?.fullTime?.away),
+        homeScore: status === "upcoming" ? null : num(m.score?.fullTime?.home),
+        awayScore: status === "upcoming" ? null : num(m.score?.fullTime?.away),
         status,
         statusText: st === "IN_PLAY" ? "LIVE" : st === "PAUSED" ? "HT" : st,
         kickoff: typeof m.utcDate === "string" ? m.utcDate : "",
       };
     });
-  } catch {
-    return null;
+    return { items, report: { source: "football-data", ok: true, count: items.length } };
+  } catch (e) {
+    return fail("football-data", e instanceof Error ? e.message : "Okänt fel.");
   }
 }
 
-const flag = (code: string) => `https://flagcdn.com/w40/${code}.png`;
+async function loadMatches(date: string): Promise<MatchesResult> {
+  const reports: SourceReport[] = [];
+  const hasAnyKey = Boolean(
+    process.env["API_FOOTBALL_KEY"] ||
+    process.env["API_SPORTS_KEY"] ||
+    process.env["RAPIDAPI_KEY"] ||
+    process.env["LIVESCORE_API_URL"] ||
+    process.env["FOOTBALL_DATA_TOKEN"],
+  );
 
-const DEMO_COUNTRY: Record<string, { country: string; flag?: string }> = {
-  "UEFA Champions League": { country: "Europe" },
-  "Premier League": { country: "England", flag: flag("gb-eng") },
-  LaLiga: { country: "Spain", flag: flag("es") },
-  Allsvenskan: { country: "Sweden", flag: flag("se") },
-  "Serie A": { country: "Italy", flag: flag("it") },
-  Bundesliga: { country: "Germany", flag: flag("de") },
-};
-
-type DemoMatch = Omit<MatchItem, "leagueKey" | "country" | "countryFlag">;
-
-function getCuratedDemoMatches(date: string): MatchItem[] {
-  const base: DemoMatch[] = [
-    {
-      id: "ucl-1",
-      league: "UEFA Champions League",
-      home: "Real Madrid",
-      away: "Bayern München",
-      homeScore: 2,
-      awayScore: 1,
-      status: "finished",
-      statusText: "Slut",
-      kickoff: `${date}T20:00:00Z`,
-    },
-    {
-      id: "ucl-2",
-      league: "UEFA Champions League",
-      home: "Arsenal",
-      away: "Paris Saint-Germain",
-      homeScore: 2,
-      awayScore: 0,
-      status: "finished",
-      statusText: "Slut",
-      kickoff: `${date}T20:00:00Z`,
-    },
-    {
-      id: "epl-1",
-      league: "Premier League",
-      home: "Liverpool",
-      away: "Chelsea",
-      homeScore: 2,
-      awayScore: 1,
-      status: "finished",
-      statusText: "Slut",
-      kickoff: `${date}T16:30:00Z`,
-    },
-    {
-      id: "epl-2",
-      league: "Premier League",
-      home: "Manchester City",
-      away: "Tottenham",
-      homeScore: 1,
-      awayScore: 1,
-      status: "live",
-      statusText: "78'",
-      kickoff: `${date}T18:30:00Z`,
-    },
-    {
-      id: "laliga-1",
-      league: "LaLiga",
-      home: "Barcelona",
-      away: "Sevilla",
-      homeScore: 5,
-      awayScore: 1,
-      status: "finished",
-      statusText: "Slut",
-      kickoff: `${date}T21:00:00Z`,
-    },
-    {
-      id: "laliga-2",
-      league: "LaLiga",
-      home: "Atlético Madrid",
-      away: "Real Sociedad",
-      homeScore: 1,
-      awayScore: 0,
-      status: "upcoming",
-      statusText: "21:00",
-      kickoff: `${date}T21:00:00Z`,
-    },
-    {
-      id: "allsv-1",
-      league: "Allsvenskan",
-      home: "Malmö FF",
-      away: "AIK",
-      homeScore: 2,
-      awayScore: 1,
-      status: "finished",
-      statusText: "Slut",
-      kickoff: `${date}T15:00:00Z`,
-    },
-    {
-      id: "allsv-2",
-      league: "Allsvenskan",
-      home: "Hammarby",
-      away: "Djurgården",
-      homeScore: 2,
-      awayScore: 0,
-      status: "finished",
-      statusText: "Slut",
-      kickoff: `${date}T17:30:00Z`,
-    },
-    {
-      id: "seriea-1",
-      league: "Serie A",
-      home: "Inter",
-      away: "Juventus",
-      homeScore: 4,
-      awayScore: 4,
-      status: "finished",
-      statusText: "Slut",
-      kickoff: `${date}T19:45:00Z`,
-    },
-    {
-      id: "buli-1",
-      league: "Bundesliga",
-      home: "Bayer Leverkusen",
-      away: "Eintracht Frankfurt",
-      homeScore: 2,
-      awayScore: 1,
-      status: "finished",
-      statusText: "Slut",
-      kickoff: `${date}T14:30:00Z`,
-    },
+  const attempts: (() => Promise<Fetched | null>)[] = [
+    () => fromApiFootball(date),
+    () => fromEspn(date),
+    () => fromLivescore(date),
+    () => fromFootballData(date),
   ];
-  return base.map((m) => {
-    const c = DEMO_COUNTRY[m.league];
+
+  // Första källan som ger matcher vinner. En källa som svarar "inga matcher" räknas som ett svar
+  // men vi provar nästa, eftersom tom dag i en källa ofta bara betyder att den saknar täckning.
+  let best: { source: SourceName; items: MatchItem[] } | null = null;
+  let anyOk = false;
+  for (const attempt of attempts) {
+    const r = await attempt();
+    if (!r) continue;
+    reports.push(r.report);
+    if (r.report.ok) anyOk = true;
+    if (r.items.length > 0) {
+      best = { source: r.report.source, items: r.items };
+      break;
+    }
+  }
+
+  const now = new Date().toISOString();
+  if (best) {
     return {
-      ...m,
-      leagueKey: leagueKeyOf(null, c?.country, m.league),
-      ...(c ? { country: c.country } : {}),
-      ...(c?.flag ? { countryFlag: c.flag } : {}),
+      source: best.source,
+      matches: best.items,
+      isLiveSource: true,
+      missingConfig: false,
+      stale: false,
+      fetchedAt: now,
+      diagnostics: reports,
     };
-  });
+  }
+
+  return {
+    source: "none",
+    matches: [],
+    isLiveSource: false,
+    missingConfig: !hasAnyKey && !anyOk,
+    stale: false,
+    fetchedAt: now,
+    diagnostics: reports,
+  };
 }
 
 export const matchesByDate = createServerFn({ method: "GET" })
   .inputValidator(dateStr)
-  .handler(async ({ data }: { data: string }) => {
-    // 1. Try api-football.com (v3)
-    const apiFootball = await fromApiFootball(data);
-    if (apiFootball && apiFootball.length > 0) {
-      return {
-        source: "api-football" as const,
-        matches: apiFootball,
-        isLiveSource: true,
-      };
-    }
+  .handler(async ({ data }: { data: string }): Promise<MatchesResult> => {
+    const key = `matches:${data}`;
+    const hit = fresh.get<MatchesResult>(key);
+    if (hit) return hit;
 
-    // 2. Try custom livescore server
-    const ls = await fromLivescore(data);
-    if (ls && ls.length > 0) {
-      return {
-        source: "livescore" as const,
-        matches: ls,
-        isLiveSource: true,
-      };
-    }
+    return inflight.run(key, async () => {
+      const result = await loadMatches(data);
+      const anySourceWorked = result.diagnostics.some((d) => d.ok);
 
-    // 3. Try football-data.org
-    const fd = await fromFootballData(data);
-    if (fd && fd.length > 0) {
-      return {
-        source: "football-data" as const,
-        matches: fd,
-        isLiveSource: true,
-      };
-    }
+      if (result.matches.length > 0) {
+        const ttl = matchesTtlMs(result.matches, data, stockholmDate(new Date()));
+        fresh.set(key, result, ttl);
+        lastGood.set(key, result, 6 * 3_600_000);
+        return result;
+      }
 
-    // 4. Graceful fallback with top matches and clear config guidance
-    return {
-      source: "preview" as const,
-      matches: getCuratedDemoMatches(data),
-      isLiveSource: false,
-      missingConfig: true,
-    };
+      // Ingen källa gav matcher. Fanns det äldre data visas den hellre än en tom sida,
+      // men bara om källorna misslyckades. En riktigt tom dag ska visas som tom.
+      if (!anySourceWorked) {
+        const old = lastGood.get<MatchesResult>(key);
+        if (old) return { ...old, stale: true, diagnostics: result.diagnostics };
+        return result; // misslyckande cachas inte, så nästa besök försöker igen direkt
+      }
+
+      fresh.set(key, result, matchesTtlMs([], data, stockholmDate(new Date())));
+      return result;
+    });
   });

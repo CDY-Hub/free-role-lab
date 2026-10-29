@@ -76,8 +76,9 @@ function SearchPage() {
     queryKey: ["tm-search", term.toLocaleLowerCase("sv")],
     queryFn: () => tmSearchAll({ data: term }),
     enabled: searchTm,
-    staleTime: 3600_000,
-    gcTime: 3600_000,
+    // Ett misslyckat svar (source "none") får aldrig leva i en timme: nästa sökning ska försöka igen.
+    staleTime: (query) => (query.state.data?.meta.source === "none" ? 0 : 3600_000),
+    gcTime: 15 * 60_000,
     retry: 1,
     refetchOnWindowFocus: false,
   });

@@ -29,19 +29,19 @@ export const UEFA_COMPS = [
   {
     slug: "champions-league",
     name: "Champions League",
-    desc: "Europacupen/Champions League – alla finaler sedan 1956",
+    desc: "Europacupen/Champions League – alla säsonger sedan 1955–56, inklusive 2026–27",
     wiki: "List of European Cup and UEFA Champions League finals",
   },
   {
     slug: "europa-league",
     name: "Europa League",
-    desc: "UEFA-cupen/Europa League – alla finaler sedan 1972",
+    desc: "UEFA-cupen/Europa League – alla säsonger sedan 1971–72, inklusive 2026–27",
     wiki: "List of UEFA Cup and Europa League finals",
   },
   {
     slug: "conference-league",
     name: "Conference League",
-    desc: "Alla finaler sedan 2022",
+    desc: "Alla säsonger 2021–22 till 2026–27",
     wiki: "List of UEFA Conference League finals",
   },
   {

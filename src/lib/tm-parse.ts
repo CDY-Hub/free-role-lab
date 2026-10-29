@@ -26,6 +26,17 @@ export type TmClubHit = {
   marketValue?: number | undefined;
 };
 
+export type TmValuableClub = {
+  rank: number;
+  id: string;
+  name: string;
+  imageUrl?: string | undefined;
+  league?: { id?: string | undefined; name: string } | undefined;
+  squadSize?: number | undefined;
+  /** Truppens totala marknadsvärde i euro. */
+  marketValue: number;
+};
+
 export type TmCoachHit = {
   id: string;
   name: string;
@@ -240,6 +251,87 @@ export function parseClubs(html: string): TmClubHit[] {
       marketValue: marketValueIn(win),
     };
   });
+}
+
+/**
+ * Transfermarkts lista "Most valuable teams" (spieler-statistik/wertvollstemannschaften).
+ * Kolumnordningen läses inte: totalvärdet är det största belopp som står på raden (snittvärden
+ * per spelare är alltid mindre), och rangen sätts om efter värde så att listan alltid är i ordning.
+ */
+export function parseValuableClubs(html: string): TmValuableClub[] {
+  const rows = html.split(/<tr\b/i).slice(1);
+  const out: TmValuableClub[] = [];
+  const seen = new Set<string>();
+  const clubRx = new RegExp(
+    `<a\\b([^>]*)href="/([^"/]+)/${CLUB_KIND}/(\\d+)[^"]*"([^>]*)>([\\s\\S]*?)</a>`,
+    "gi",
+  );
+
+  for (const row of rows) {
+    // Klubblänken med text (inte bara vapenbilden).
+    let id: string | undefined;
+    let name: string | undefined;
+    let linkEnd = 0;
+    clubRx.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = clubRx.exec(row)) !== null) {
+      const text = stripTags(m[5]!);
+      if (text) {
+        id = m[3]!;
+        name = text;
+        linkEnd = m.index + m[0].length;
+        break;
+      }
+    }
+    if (!id || !name || seen.has(id)) continue;
+
+    const plain = stripTags(row).replace(/&euro;/gi, "€");
+    let best: number | undefined;
+    for (const am of plain.matchAll(/€\s*([\d.,]+)\s*(bn|m|k|th\.)?/gi)) {
+      const v = parseMarketValue(`€${am[1]!.replace(/,/g, "")}${am[2] ?? ""}`);
+      if (v != null && (best == null || v > best)) best = v;
+    }
+    if (best == null || best <= 0) continue;
+    seen.add(id);
+
+    // Truppstorlek: första heltalet i en centrerad cell efter klubbnamnet som ser ut som en trupp.
+    const after = row.slice(linkEnd);
+    let squadSize: number | undefined;
+    for (const sm of after.matchAll(
+      /<td[^>]*class="[^"]*zentriert[^"]*"[^>]*>\s*(\d{1,3})\s*<\/td>/gi,
+    )) {
+      const n = Number(sm[1]);
+      if (n >= 11 && n <= 90) {
+        squadSize = n;
+        break;
+      }
+    }
+
+    const lg =
+      /<a\b[^>]*href="\/[^"/]+\/startseite\/wettbewerb\/([A-Za-z0-9]+)"[^>]*>([\s\S]*?)<\/a>/i.exec(
+        row,
+      );
+    const lgTitle = lg ? /title="([^"]+)"/i.exec(lg[0])?.[1] : undefined;
+    const lgName = lg ? stripTags(lg[2]!) || (lgTitle ? decodeEntities(lgTitle) : "") : "";
+
+    const crestTag = /<img\b[^>]*wappen[^>]*>/i.exec(row)?.[0];
+    const crest = crestTag
+      ? absoluteUrl(attr(crestTag, "data-src") ?? attr(crestTag, "src"))
+      : undefined;
+    out.push({
+      rank: 0,
+      id,
+      name,
+      imageUrl: crest && !/default|placeholder/i.test(crest) ? crest : undefined,
+      league: lg && lgName ? { id: lg[1]!, name: lgName } : undefined,
+      squadSize,
+      marketValue: best,
+    });
+  }
+
+  out.sort((a, b) => b.marketValue - a.marketValue);
+  out.forEach((c, i) => (c.rank = i + 1));
+  return out;
 }
 
 export function parseCoaches(html: string): TmCoachHit[] {
