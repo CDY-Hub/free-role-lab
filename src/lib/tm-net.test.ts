@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Breaker, Gate, Inflight, TimeoutError, TtlCache, fetchWithTimeout } from "./tm-net";
+import {
+  Breaker,
+  Gate,
+  Inflight,
+  TimeoutError,
+  TtlCache,
+  fetchWithTimeout,
+  runPool,
+} from "./tm-net";
 
 describe("TtlCache", () => {
   it("returns fresh values and drops expired ones", () => {
@@ -161,5 +169,27 @@ describe("fetchWithTimeout", () => {
   it("passes other errors through unchanged", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("dns")));
     await expect(fetchWithTimeout("https://example.test", {}, 1000)).rejects.toThrow("dns");
+  });
+});
+
+describe("runPool", () => {
+  it("never runs more than the limit at once and keeps the order of the results", async () => {
+    let active = 0;
+    let peak = 0;
+    const out = await runPool([1, 2, 3, 4, 5, 6, 7], 3, async (n) => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((r) => setTimeout(r, 5));
+      active--;
+      return n * 2;
+    });
+    expect(out).toEqual([2, 4, 6, 8, 10, 12, 14]);
+    expect(peak).toBeLessThanOrEqual(3);
+    expect(peak).toBeGreaterThan(1);
+  });
+
+  it("handles an empty list and a limit larger than the list", async () => {
+    expect(await runPool([], 4, async (n: number) => n)).toEqual([]);
+    expect(await runPool([1, 2], 10, async (n) => n + 1)).toEqual([2, 3]);
   });
 });

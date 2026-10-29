@@ -29,6 +29,8 @@
 - [x] Ligakatalog avgränsad till de fem stora ligorna, Allsvenskan, Liga Portugal och Eredivisie (Superettan, Ettan och andradivisioner borttagna)
 - [x] Sökning: timeout, parallella sidhämtningar, cache med minnestak, dubblettskydd och säkring mot strypning
 - [x] Matcher: servercache, ESPN som nyckelfri reservkälla, endast fokusligor, tydliga felmeddelanden i stället för påhittade resultat
+- [x] Matcher: andradivisioner (Championship, 2. Bundesliga, 3. Liga, LaLiga Hypermotion, Serie B, Ligue 2) och högsta ligorna i Belgien, Skottland, Österrike, Schweiz, Grekland, Polen och Irland. Polen, Schweiz och Irland kräver fungerande API-Football-nyckel
+- [ ] Matcher: ligafilter på sidan (t.ex. Topp 5, Andradivisioner, Övriga Europa) när listan blir lång
 - [x] Mest värda klubbarna läses från Transfermarkts egen rankinglista
 - [x] UEFA: säsong 2026–27 för Champions League och Europa League samt Conference League 2021–22 till 2026–27
 

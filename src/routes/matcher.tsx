@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Section } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
-import { matchesByDate, type MatchItem } from "@/lib/matches.functions";
+import { matchesByDate, type MatchItem, type SourceName } from "@/lib/matches.functions";
 import { shiftDate } from "@/lib/matches-parse";
 
 export const Route = createFileRoute("/matcher")({
@@ -63,6 +63,14 @@ function StatusBadge({ m }: { m: MatchItem }) {
     return <span className="text-xs font-semibold text-muted-foreground">{m.statusText}</span>;
   return <span className="text-xs text-muted-foreground">{time(m)}</span>;
 }
+
+const SOURCE_LABEL: Record<SourceName, string> = {
+  "api-football": "API-Football",
+  espn: "ESPN",
+  openligadb: "OpenLigaDB",
+  livescore: "Egen livescore-server",
+  "football-data": "football-data.org",
+};
 
 function LeagueTitle({ m }: { m: MatchItem }) {
   return (
@@ -161,13 +169,21 @@ function MatchesPage() {
         </p>
       )}
 
+      {q.data && q.data.gaps.length > 0 && (
+        <p className="mb-4 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+          Just nu går det inte att hämta matcher för: {q.data.gaps.join(", ")}. Källan som levererar
+          dem (API-Football) svarar inte, så de saknas på sidan tills den gör det. Övriga ligor
+          påverkas inte.
+        </p>
+      )}
+
       {q.data && groups.size === 0 && q.data.source !== "none" && (
         <p className="text-sm text-muted-foreground">Inga matcher hittades det här datumet.</p>
       )}
 
       {q.data && q.data.source === "none" && groups.size === 0 && (
         <div className="rounded-xl border p-5 text-sm">
-          {q.data.diagnostics.some((d) => d.ok) ? (
+          {q.data.diagnostics.some((d) => d.ok && d.source !== "openligadb") ? (
             <p className="text-muted-foreground">Inga matcher hittades det här datumet.</p>
           ) : (
             <>
@@ -179,7 +195,7 @@ function MatchesPage() {
                 <ul className="mt-2 list-disc pl-5 text-xs text-muted-foreground">
                   {q.data.diagnostics.map((d) => (
                     <li key={d.source}>
-                      {d.source}: {d.reason ?? "inget svar"}
+                      {SOURCE_LABEL[d.source]}: {d.reason ?? "inget svar"}
                     </li>
                   ))}
                 </ul>
@@ -244,17 +260,27 @@ function MatchesPage() {
       </div>
 
       {q.data && q.data.source !== "none" && (
-        <p className="mt-10 text-center text-xs text-muted-foreground">
-          Källa:{" "}
-          {q.data.source === "api-football"
-            ? "api-football.com"
-            : q.data.source === "espn"
-              ? "ESPN"
-              : q.data.source === "livescore"
-                ? "Egen livescore-server"
-                : "football-data.org"}
-          . Top 5-ligor, Allsvenskan, Portugal, Nederländerna, UEFA- och FIFA-turneringar.
-        </p>
+        <div className="mt-10 space-y-2 text-center text-xs text-muted-foreground">
+          <p>
+            Källor: {q.data.sources.map((x) => SOURCE_LABEL[x]).join(", ")}. Premier League, LaLiga,
+            Serie A, Bundesliga, Ligue 1, Allsvenskan, Championship, 2. Bundesliga, 3. Liga, LaLiga
+            Hypermotion, Serie B, Ligue 2 samt högsta ligorna i Portugal, Nederländerna, Belgien,
+            Skottland, Österrike, Schweiz, Grekland, Polen och Irland. Dessutom UEFA- och
+            FIFA-turneringar och de stora cuperna.
+          </p>
+          <details className="mx-auto max-w-xl">
+            <summary className="cursor-pointer">Källstatus</summary>
+            <ul className="mt-2 space-y-1 text-left">
+              {q.data.diagnostics.map((d) => (
+                <li key={d.source}>
+                  <span className="font-semibold">{SOURCE_LABEL[d.source]}</span>:{" "}
+                  {d.ok ? `${d.count} matcher` : "svarar inte"}
+                  {d.reason ? ` – ${d.reason}` : ""}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </div>
       )}
     </main>
   );

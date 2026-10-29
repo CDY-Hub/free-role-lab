@@ -56,8 +56,10 @@ export function shiftDate(date: string, days: number): string {
 }
 
 // ─── Vilka tävlingar som visas ────────────────────────────────────────────────
-// Fokus: de fem stora ligorna, Allsvenskan, Portugal, Nederländerna, UEFA- och FIFA-turneringar
-// samt ligornas inhemska cuper.
+// Fokus: de fem stora ligorna, Allsvenskan, Portugal, Nederländerna, UEFA- och FIFA-turneringar,
+// ligornas inhemska cuper, andradivisionerna i de fem stora länderna (Championship, 2. Bundesliga,
+// 3. Liga, LaLiga Hypermotion, Serie B, Ligue 2) samt högsta ligan i Belgien, Skottland, Österrike,
+// Schweiz, Grekland, Polen och Irland.
 
 /** Prioritet per API-Football-id (högre visas högre upp). */
 export const API_FOOTBALL_PRIORITY: Record<number, number> = {
@@ -79,6 +81,19 @@ export const API_FOOTBALL_PRIORITY: Record<number, number> = {
   113: 60, // Allsvenskan
   94: 58, // Liga Portugal
   88: 56, // Eredivisie
+  40: 55, // Championship
+  79: 54.8, // 2. Bundesliga
+  141: 54.6, // LaLiga Hypermotion
+  136: 54.4, // Serie B
+  62: 54.2, // Ligue 2
+  80: 54, // 3. Liga
+  144: 53.5, // Belgian Pro League
+  179: 53, // Scottish Premiership
+  218: 52.5, // Austrian Bundesliga
+  207: 52.2, // Swiss Super League
+  197: 52, // Greek Super League
+  106: 51.5, // Ekstraklasa
+  357: 51, // League of Ireland Premier Division
   45: 50, // FA Cup
   48: 48, // EFL Cup
   143: 45, // Copa del Rey
@@ -89,6 +104,24 @@ export const API_FOOTBALL_PRIORITY: Record<number, number> = {
   90: 39, // KNVB Beker
   10: 30, // Internationella vänskapsmatcher
 };
+
+/**
+ * Ligor som ESPN saknar eller inte har data för. De hämtas från API-Football (Ekstraklasa, Swiss
+ * Super League, League of Ireland) eller OpenLigaDB (3. Liga) så länge ESPN fungerar.
+ */
+export const API_FOOTBALL_GAP_LEAGUES: Record<number, string> = {
+  80: "3. Liga",
+  106: "Ekstraklasa (Polen)",
+  207: "Super League (Schweiz)",
+  357: "Premier Division (Irland)",
+};
+
+/** Ligor utan fungerande källa just nu. 3. Liga täcks av OpenLigaDB eller API-Football. */
+export function leagueGaps(apiOk: boolean, openLigaOk: boolean): string[] {
+  return Object.entries(API_FOOTBALL_GAP_LEAGUES)
+    .filter(([id]) => !(apiOk || (Number(id) === 80 && openLigaOk)))
+    .map(([, name]) => name);
+}
 
 const FIFA_UEFA_NAME = /^(fifa |world cup|uefa (nations|euro|super)|euro championship)/i;
 
@@ -207,6 +240,59 @@ export const ESPN_COMPETITIONS: EspnComp[] = [
   { slug: "swe.1", name: "Allsvenskan", country: "Sweden", flag: flag("se"), priority: 60 },
   { slug: "por.1", name: "Liga Portugal", country: "Portugal", flag: flag("pt"), priority: 58 },
   { slug: "ned.1", name: "Eredivisie", country: "Netherlands", flag: flag("nl"), priority: 56 },
+  // Andradivisioner i de fem stora länderna
+  {
+    slug: "eng.2",
+    name: "Championship",
+    country: "England",
+    flag: flag("gb-eng"),
+    priority: 55,
+  },
+  {
+    slug: "ger.2",
+    name: "2. Bundesliga",
+    country: "Germany",
+    flag: flag("de"),
+    priority: 54.8,
+  },
+  {
+    slug: "esp.2",
+    name: "LaLiga Hypermotion",
+    country: "Spain",
+    flag: flag("es"),
+    priority: 54.6,
+  },
+  { slug: "ita.2", name: "Serie B", country: "Italy", flag: flag("it"), priority: 54.4 },
+  { slug: "fra.2", name: "Ligue 2", country: "France", flag: flag("fr"), priority: 54.2 },
+  // Högsta ligan i övriga europeiska länder
+  {
+    slug: "bel.1",
+    name: "Belgian Pro League",
+    country: "Belgium",
+    flag: flag("be"),
+    priority: 53.5,
+  },
+  {
+    slug: "sco.1",
+    name: "Scottish Premiership",
+    country: "Scotland",
+    flag: flag("gb-sct"),
+    priority: 53,
+  },
+  {
+    slug: "aut.1",
+    name: "Austrian Bundesliga",
+    country: "Austria",
+    flag: flag("at"),
+    priority: 52.5,
+  },
+  {
+    slug: "gre.1",
+    name: "Greek Super League",
+    country: "Greece",
+    flag: flag("gr"),
+    priority: 52,
+  },
   // Inhemska cuper
   { slug: "eng.fa", name: "FA Cup", country: "England", flag: flag("gb-eng"), priority: 50 },
   {
@@ -313,6 +399,140 @@ export function parseEspnScoreboard(body: any, comp: EspnComp): MatchItem[] {
   return out;
 }
 
+// ─── OpenLigaDB (öppet API utan nyckel, används för 3. Liga) ─────────────────────
+export type OpenLigaLeague = {
+  shortcut: string;
+  name: string;
+  country: string;
+  flag: string;
+  priority: number;
+};
+
+export const OPENLIGA_LEAGUES: OpenLigaLeague[] = [
+  { shortcut: "bl3", name: "3. Liga", country: "Germany", flag: flag("de"), priority: 54 },
+];
+
+/** Säsongen startar på sommaren: från juli och framåt gäller säsongen som börjar det året. */
+export function openLigaSeason(date: string): number {
+  const [y = 0, m = 1] = date.split("-").map(Number);
+  return m >= 7 ? y : y - 1;
+}
+
+export function openLigaUrl(shortcut: string, season: number): string {
+  return `https://api.openligadb.de/getmatchdata/${shortcut}/${season}`;
+}
+
+/** Det som behövs ur en OpenLigaDB-match. Hela säsongen är ~450 kB, så vi sparar bara detta. */
+export type OpenLigaMatch = {
+  id: number;
+  utc: string;
+  finished: boolean;
+  home: string;
+  away: string;
+  homeLogo?: string;
+  awayLogo?: string;
+  /** Slutresultat (resultTypeID 2) när det finns. */
+  final: [number, number] | null;
+  /** Ställning efter sista målet. Används medan matchen pågår. */
+  lastGoal: [number, number] | null;
+};
+
+export function projectOpenLiga(body: unknown): OpenLigaMatch[] {
+  if (!Array.isArray(body)) return [];
+  const out: OpenLigaMatch[] = [];
+  for (const m of body as any[]) {
+    const utc = typeof m?.matchDateTimeUTC === "string" ? m.matchDateTimeUTC : "";
+    const home = m?.team1?.teamName;
+    const away = m?.team2?.teamName;
+    if (!utc || typeof home !== "string" || typeof away !== "string" || m?.matchID == null) {
+      continue;
+    }
+    const results: any[] = Array.isArray(m.matchResults) ? m.matchResults : [];
+    const end = results.find((r) => r?.resultTypeID === 2);
+    const final =
+      end && num(end.pointsTeam1) != null && num(end.pointsTeam2) != null
+        ? ([num(end.pointsTeam1)!, num(end.pointsTeam2)!] as [number, number])
+        : null;
+
+    const goals: any[] = Array.isArray(m.goals) ? m.goals : [];
+    const last = goals.length
+      ? goals.reduce((a, b) => (Number(b?.goalID ?? 0) >= Number(a?.goalID ?? 0) ? b : a))
+      : undefined;
+    const lastGoal =
+      last && num(last.scoreTeam1) != null && num(last.scoreTeam2) != null
+        ? ([num(last.scoreTeam1)!, num(last.scoreTeam2)!] as [number, number])
+        : null;
+
+    out.push({
+      id: Number(m.matchID),
+      utc,
+      finished: m.matchIsFinished === true,
+      home,
+      away,
+      ...(typeof m.team1.teamIconUrl === "string" && m.team1.teamIconUrl
+        ? { homeLogo: m.team1.teamIconUrl }
+        : {}),
+      ...(typeof m.team2.teamIconUrl === "string" && m.team2.teamIconUrl
+        ? { awayLogo: m.team2.teamIconUrl }
+        : {}),
+      final,
+      lastGoal,
+    });
+  }
+  return out;
+}
+
+const OPENLIGA_MAX_MATCH_MS = 3 * 3_600_000;
+
+/** Matcherna som startar på angivet datum (svensk tid). OpenLigaDB har ingen livestatus, så den räknas ut. */
+export function openLigaToItems(
+  list: OpenLigaMatch[],
+  league: OpenLigaLeague,
+  date: string,
+  nowMs: number,
+): MatchItem[] {
+  const out: MatchItem[] = [];
+  for (const m of list) {
+    if (stockholmDate(m.utc) !== date) continue;
+    const kickoff = Date.parse(m.utc);
+    const started = Number.isFinite(kickoff) && nowMs >= kickoff;
+    const overdue = started && nowMs >= kickoff + OPENLIGA_MAX_MATCH_MS;
+
+    let status: MatchItem["status"] = "upcoming";
+    let score: [number, number] | null = null;
+    if (m.finished) {
+      status = "finished";
+      score = m.final ?? m.lastGoal ?? null;
+    } else if (started && !overdue) {
+      status = "live";
+      score = m.lastGoal ?? [0, 0];
+    } else if (overdue && (m.final ?? m.lastGoal)) {
+      // Matchen är över men inte markerad som klar än. Resultatet är känt.
+      status = "finished";
+      score = m.final ?? m.lastGoal;
+    }
+
+    out.push({
+      id: `ol-${m.id}`,
+      league: league.name,
+      home: m.home,
+      away: m.away,
+      homeScore: score ? score[0] : null,
+      awayScore: score ? score[1] : null,
+      status,
+      statusText: status === "finished" ? "Slut" : status === "live" ? "LIVE" : "",
+      kickoff: m.utc,
+      ...(m.homeLogo ? { homeLogo: m.homeLogo } : {}),
+      ...(m.awayLogo ? { awayLogo: m.awayLogo } : {}),
+      country: league.country,
+      countryFlag: league.flag,
+      leagueKey: `openliga-${league.shortcut}`,
+      priority: league.priority,
+    });
+  }
+  return out;
+}
+
 export function sortMatches(list: MatchItem[]): MatchItem[] {
   return [...list].sort(
     (a, b) =>
@@ -331,6 +551,27 @@ export function onlyLocalDate(list: MatchItem[], date: string): MatchItem[] {
     if (!m.kickoff.includes("T")) return true;
     return stockholmDate(m.kickoff) === date;
   });
+}
+
+/**
+ * Hur länge ett API-Football-svar får leva. Kvoten är liten, så svaret delas länge, men det går ut
+ * så fort en match ska börja eller medan något pågår, annars skulle live-ställningen släpa.
+ */
+export function apiFootballTtlMs(
+  list: MatchItem[],
+  date: string,
+  today: string,
+  nowMs: number,
+): number {
+  if (date !== today) return 3 * 3_600_000;
+  if (list.some((m) => m.status === "live")) return 90_000;
+  let ttl = 15 * 60_000;
+  for (const m of list) {
+    if (m.status !== "upcoming") continue;
+    const t = Date.parse(m.kickoff);
+    if (Number.isFinite(t) && t > nowMs) ttl = Math.min(ttl, t - nowMs + 30_000);
+  }
+  return Math.max(30_000, ttl);
 }
 
 /** Hur länge ett svar får leva i serverns cache. Kort när något pågår, längre annars. */
