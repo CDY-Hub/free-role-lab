@@ -387,17 +387,16 @@ const rankingScope = (d: unknown): "world" | "sweden" => {
 
 export const tmMostValuablePlayers = createServerFn({ method: "GET" })
   .inputValidator(rankingScope)
-  .handler(
-    async ({ data }: { data: "world" | "sweden" }): Promise<TmRankedPlayer[]> =>
-      cachedRanking(`rank:players:${data}`, async () => {
-        const path = data === "sweden" ? `${PLAYERS_PATH}?land_id=${SWEDEN_LAND_ID}` : PLAYERS_PATH;
-        const html = await tmFetch(path, RANKING_TTL);
-        const players = parseValuablePlayers(html);
-        if (players.length < 5) {
-          throw new Error("Kunde inte läsa Transfermarkts lista över dyraste spelare.");
-        }
-        return players.slice(0, 25);
-      }),
+  .handler(async ({ data }: { data: "world" | "sweden" }): Promise<TmRankedPlayer[]> =>
+    cachedRanking(`rank:players:${data}`, async () => {
+      const path = data === "sweden" ? `${PLAYERS_PATH}?land_id=${SWEDEN_LAND_ID}` : PLAYERS_PATH;
+      const html = await tmFetch(path, RANKING_TTL);
+      const players = parseValuablePlayers(html);
+      if (players.length < 5) {
+        throw new Error("Kunde inte läsa Transfermarkts lista över dyraste spelare.");
+      }
+      return players.slice(0, 25);
+    }),
   );
 
 // ─── Lagets trupp ──────────────────────────────────────────────────────────────
