@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Section } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { matchesByDate, type MatchItem } from "@/lib/matches.functions";
+import { shiftDate } from "@/lib/matches-parse";
 
 export const Route = createFileRoute("/matcher")({
   head: () => ({
@@ -28,12 +29,16 @@ export const Route = createFileRoute("/matcher")({
   component: MatchesPage,
 });
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-const shift = (date: string, days: number) => {
-  const d = new Date(`${date}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return iso(d);
-};
+// Dagen räknas i svensk tid, både här och på servern. toISOString() ger UTC-datum, vilket efter
+// midnatt (svensk tid) pekade på gårdagen och därför visade fel matcher.
+const iso = (d: Date) =>
+  new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+const shift = shiftDate;
 
 const time = (m: MatchItem) => {
   if (!m.kickoff) return "";
@@ -54,6 +59,8 @@ function StatusBadge({ m }: { m: MatchItem }) {
     );
   if (m.status === "finished")
     return <span className="text-xs font-bold text-muted-foreground">Slut</span>;
+  if (m.statusText === "Uppskjuten" || m.statusText === "Inställd")
+    return <span className="text-xs font-semibold text-muted-foreground">{m.statusText}</span>;
   return <span className="text-xs text-muted-foreground">{time(m)}</span>;
 }
 
@@ -79,11 +86,15 @@ function LeagueTitle({ m }: { m: MatchItem }) {
 
 function MatchesPage() {
   const [date, setDate] = useState(() => iso(new Date()));
+  const today = iso(new Date());
   const q = useQuery({
     queryKey: ["matches", date],
     queryFn: () => matchesByDate({ data: date }),
-    refetchInterval: 60_000,
+    // Uppdatera bara medan man tittar på idag. Andra dagar ändras sällan.
+    refetchInterval: date === today ? 60_000 : false,
+    staleTime: 30_000,
     retry: 1,
+    placeholderData: (prev) => prev,
   });
 
   // Gruppera per tävling (liga-ID), inte per namn, så att olika länders "Serie A" hålls isär.
@@ -113,7 +124,7 @@ function MatchesPage() {
             <ChevronLeft className="size-4" />
           </Button>
           <span className="min-w-40 text-center font-display text-lg font-bold">
-            {date === iso(new Date())
+            {date === today
               ? "Idag"
               : new Date(`${date}T12:00:00Z`).toLocaleDateString("sv-SE", {
                   weekday: "long",
@@ -129,8 +140,8 @@ function MatchesPage() {
           >
             <ChevronRight className="size-4" />
           </Button>
-          {date !== iso(new Date()) && (
-            <Button variant="ghost" onClick={() => setDate(iso(new Date()))}>
+          {date !== today && (
+            <Button variant="ghost" onClick={() => setDate(today)}>
               Till idag
             </Button>
           )}
@@ -140,24 +151,51 @@ function MatchesPage() {
       {q.isLoading && <p className="text-sm text-muted-foreground">Hämtar matcherna…</p>}
       {q.error && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}
 
-      {q.data?.missingConfig && (
-        <div className="mb-8 rounded-xl border border-primary/30 bg-primary/5 p-5 text-sm">
-          <div className="flex items-center gap-2 font-display text-lg font-bold text-primary">
-            <span>⚡ Livescore i realtid från api-football.com</span>
-          </div>
-          <p className="mt-1.5 text-muted-foreground">
-            Just nu visas förhandsvisningsmatcher för Champions League, Premier League, LaLiga,
-            Serie A och Allsvenskan. För att hämta direkt realtidsdata, lägg till din nyckel från{" "}
-            <strong>api-football.com</strong> i miljövariablerna (eller <code>.env</code>):
-          </p>
-          <div className="mt-3 rounded-lg border bg-background p-2.5 font-mono text-xs text-foreground">
-            API_FOOTBALL_KEY=din_api_nyckel_här
-          </div>
-        </div>
+      {q.data?.stale && (
+        <p className="mb-4 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+          Matchkällorna svarar inte just nu. Visar senast hämtade matcher
+          {q.data.fetchedAt
+            ? ` (${new Date(q.data.fetchedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })})`
+            : ""}
+          .
+        </p>
       )}
 
-      {q.data && groups.size === 0 && (
+      {q.data && groups.size === 0 && q.data.source !== "none" && (
         <p className="text-sm text-muted-foreground">Inga matcher hittades det här datumet.</p>
+      )}
+
+      {q.data && q.data.source === "none" && groups.size === 0 && (
+        <div className="rounded-xl border p-5 text-sm">
+          {q.data.diagnostics.some((d) => d.ok) ? (
+            <p className="text-muted-foreground">Inga matcher hittades det här datumet.</p>
+          ) : (
+            <>
+              <p className="font-semibold">Det gick inte att hämta matcher just nu.</p>
+              <p className="mt-1 text-muted-foreground">
+                Alla matchkällor svarade fel. Försök igen om en stund.
+              </p>
+              {q.data.diagnostics.length > 0 && (
+                <ul className="mt-2 list-disc pl-5 text-xs text-muted-foreground">
+                  {q.data.diagnostics.map((d) => (
+                    <li key={d.source}>
+                      {d.source}: {d.reason ?? "inget svar"}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {q.data.missingConfig && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Ingen matchnyckel är inställd. Lägg till <code>API_FOOTBALL_KEY</code> i
+                  miljövariablerna om du vill ha data från api-football.com.
+                </p>
+              )}
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => q.refetch()}>
+                Försök igen
+              </Button>
+            </>
+          )}
+        </div>
       )}
 
       <div className="space-y-6">
@@ -205,17 +243,17 @@ function MatchesPage() {
         ))}
       </div>
 
-      {q.data && (
+      {q.data && q.data.source !== "none" && (
         <p className="mt-10 text-center text-xs text-muted-foreground">
           Källa:{" "}
           {q.data.source === "api-football"
-            ? "api-football.com (Top 5 ligor, cuper & Champions League)"
-            : q.data.source === "livescore"
-              ? "Egen livescore-server"
-              : q.data.source === "football-data"
-                ? "football-data.org"
-                : "Free Role Lab – Förhandsvisning (Top 5 & Cuper)"}
-          .
+            ? "api-football.com"
+            : q.data.source === "espn"
+              ? "ESPN"
+              : q.data.source === "livescore"
+                ? "Egen livescore-server"
+                : "football-data.org"}
+          . Top 5-ligor, Allsvenskan, Portugal, Nederländerna, UEFA- och FIFA-turneringar.
         </p>
       )}
     </main>

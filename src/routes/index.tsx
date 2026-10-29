@@ -3,7 +3,12 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { SearchBox } from "@/components/site-header";
 import { Section } from "@/components/ui-bits";
-import { tmPlayersBatch, tmClubsBatch, tmCompetitionTable } from "@/lib/tm.functions";
+import {
+  tmPlayersBatch,
+  tmClubsBatch,
+  tmCompetitionTable,
+  tmMostValuableClubs,
+} from "@/lib/tm.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -146,39 +151,102 @@ function PlayerList({ ids }: { ids: string[] }) {
   );
 }
 
+function ClubRow({
+  rank,
+  name,
+  image,
+  meta,
+  value,
+}: {
+  rank: number;
+  name: string;
+  image?: string | undefined;
+  meta: string;
+  value?: number | undefined;
+}) {
+  return (
+    <li className="flex items-center gap-4 py-3">
+      <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">{rank}</span>
+      {image && <img src={image} alt="" className="size-10 object-contain" loading="lazy" />}
+      <span className="flex-1">
+        <span className="block font-display text-lg font-bold">{name}</span>
+        <span className="text-xs text-muted-foreground">{meta}</span>
+      </span>
+      <span className="font-display text-xl font-extrabold text-primary">{eur(value)}</span>
+    </li>
+  );
+}
+
+// Följer Transfermarkts egen rankinglista (Most valuable teams), så att siffrorna stämmer med källan.
+// Bara om den inte går att läsa visas den äldre reservlistan, tydligt märkt.
 function ClubList() {
-  const q = useQuery({
+  const ranking = useQuery({
+    queryKey: ["tm-valuable-clubs"],
+    queryFn: () => tmMostValuableClubs(),
+    staleTime: 6 * 3600_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+  const fallback = useQuery({
     queryKey: ["tm-clubs", TOP_CLUBS],
     queryFn: () => tmClubsBatch({ data: TOP_CLUBS }),
     staleTime: 3600_000,
+    enabled: ranking.isError,
+    refetchOnWindowFocus: false,
   });
-  if (q.isLoading) return <p className="text-sm text-muted-foreground">Hämtar truppvärden…</p>;
-  if (q.error) return <p className="text-sm text-destructive">{(q.error as Error).message}</p>;
-  const top = [...(q.data ?? [])]
-    .sort((a, b) => (b.currentMarketValue ?? 0) - (a.currentMarketValue ?? 0))
+
+  if (ranking.isLoading) {
+    return <p className="text-sm text-muted-foreground">Hämtar Transfermarkts rankinglista…</p>;
+  }
+
+  if (ranking.data) {
+    return (
+      <ol className="divide-y">
+        {ranking.data.map((c) => (
+          <ClubRow
+            key={c.id}
+            rank={c.rank}
+            name={c.name}
+            image={c.imageUrl}
+            meta={[c.league?.name, c.squadSize ? `trupp på ${c.squadSize} spelare` : null]
+              .filter(Boolean)
+              .join(" · ")}
+            value={c.marketValue}
+          />
+        ))}
+      </ol>
+    );
+  }
+
+  if (fallback.isLoading) {
+    return <p className="text-sm text-muted-foreground">Hämtar truppvärden…</p>;
+  }
+  const top = [...(fallback.data ?? [])]
+    .filter((c: any) => c.name && c.currentMarketValue)
+    .sort((a: any, b: any) => (b.currentMarketValue ?? 0) - (a.currentMarketValue ?? 0))
     .slice(0, 5);
   return (
-    <ol className="divide-y">
-      {top.map((c: any, i: number) => (
-        <li key={c.id} className="flex items-center gap-4 py-3">
-          <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">
-            {i + 1}
-          </span>
-          {c.image && (
-            <img src={c.image} alt="" className="size-10 object-contain" loading="lazy" />
-          )}
-          <span className="flex-1">
-            <span className="block font-display text-lg font-bold">{c.name}</span>
-            <span className="text-xs text-muted-foreground">
-              {c.league?.name} · trupp på {c.squadSize} spelare
-            </span>
-          </span>
-          <span className="font-display text-xl font-extrabold text-primary">
-            {eur(c.currentMarketValue)}
-          </span>
-        </li>
-      ))}
-    </ol>
+    <>
+      <p className="mb-2 text-xs text-destructive">
+        Transfermarkts rankinglista gick inte att läsa just nu. Visar ett urval av storklubbar i
+        stället, så ordningen kan avvika från Transfermarkt.{" "}
+        <button className="underline" onClick={() => ranking.refetch()}>
+          Försök igen
+        </button>
+      </p>
+      <ol className="divide-y">
+        {top.map((c: any, i: number) => (
+          <ClubRow
+            key={c.id}
+            rank={i + 1}
+            name={c.name}
+            image={c.image}
+            meta={c.league?.name ?? ""}
+            value={c.currentMarketValue}
+          />
+        ))}
+      </ol>
+    </>
   );
 }
 

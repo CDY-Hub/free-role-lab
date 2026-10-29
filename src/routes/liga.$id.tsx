@@ -9,7 +9,7 @@ function seasonTitle(leagueId: string, leagueName: string) {
   const now = new Date();
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth(); // 0-indexerad
-  if (leagueId === "SE1" || leagueId === "SE2") return `${y} ${leagueName}`; // svenska ligor spelar kalenderår
+  if (leagueId === "SE1") return `${y} ${leagueName}`; // svenska ligor spelar kalenderår
   const start = m >= 6 ? y : y - 1; // europasäsongen börjar i juli/augusti
   return `${start}–${String(start + 1).slice(2)} ${leagueName}`;
 }
@@ -69,7 +69,7 @@ function LeaguePage() {
 
   const season = useQuery({
     queryKey: ["wiki-season", id],
-    queryFn: () => wikiPage({ data: seasonTitle(id, league!.name) }),
+    queryFn: () => wikiPage({ data: seasonTitle(id, league!.wiki ?? league!.name) }),
     staleTime: 3600_000,
     retry: 1,
     enabled: !!league,

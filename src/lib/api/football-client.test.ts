@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { footballFetch } from "./football-client";
+import { footballFetch, MAX_BUDGET_WAIT_MS } from "./football-client";
 
 describe("footballFetch", () => {
   beforeEach(() => {
@@ -46,5 +46,20 @@ describe("footballFetch", () => {
 
     expect(res.status).toBe(429);
     expect(mock).toHaveBeenCalledTimes(2);
+  });
+
+  it("väntar inte en hel minut när minutbudgeten är slut, utan misslyckas direkt", async () => {
+    const limited = new Response("data", {
+      status: 200,
+      headers: { "X-RateLimit-Remaining": "0" },
+    });
+    const mock = vi.fn().mockResolvedValue(limited);
+    vi.stubGlobal("fetch", mock);
+
+    await footballFetch("https://example.test");
+    // Budgeten är nu slut och återställs först om ~60 s.
+    await expect(footballFetch("https://example.test")).rejects.toThrow(/minutgräns/);
+    expect(mock).toHaveBeenCalledTimes(1);
+    expect(MAX_BUDGET_WAIT_MS).toBeLessThan(60_000);
   });
 });

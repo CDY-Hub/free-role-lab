@@ -7,6 +7,7 @@ import {
   parsePlayers,
   parseProfileHeader,
   pickWikiTitle,
+  parseValuableClubs,
   positionGroup,
   trimWikiHtml,
 } from "./tm-parse";
@@ -261,5 +262,68 @@ describe("pickWikiTitle", () => {
 
   it("returnerar null när inget är säkert", () => {
     expect(pickWikiTitle("Zzzz", [{ title: "Banana", snippet: "fruit" }])).toBeNull();
+  });
+});
+
+describe("parseValuableClubs", () => {
+  const row = (
+    rank: number,
+    slug: string,
+    id: number,
+    name: string,
+    lg: string,
+    lgId: string,
+    squad: number,
+    avg: string,
+    total: string,
+  ) => `
+    <tr class="odd">
+      <td class="zentriert">${rank}</td>
+      <td class="zentriert no-border-rechts"><a href="/${slug}/startseite/verein/${id}" title="${name}"><img src="https://tmssl.akamaized.net/images/wappen/tiny/${id}.png" title="${name}" alt="${name}" class="tiny_wappen"></a></td>
+      <td class="hauptlink no-border-links"><a class="vereinprofil_tooltip" id="${id}" href="/${slug}/startseite/verein/${id}">${name}</a></td>
+      <td class="zentriert"><a href="/x/startseite/wettbewerb/${lgId}" title="${lg}"><img src="https://tmssl.akamaized.net/images/logo/tiny/gb1.png" title="${lg}" alt="${lg}"></a></td>
+      <td class="zentriert">${squad}</td>
+      <td class="zentriert">26.1</td>
+      <td class="rechts">${avg}</td>
+      <td class="rechts hauptlink">${total}</td>
+    </tr>`;
+
+  const html = `<table class="items"><thead><tr><th>#</th><th>Club</th></tr></thead><tbody>
+    ${row(1, "manchester-city", 281, "Manchester City", "Premier League", "GB1", 25, "€46.31m", "€1.16bn")}
+    ${row(2, "arsenal-fc", 11, "Arsenal FC", "Premier League", "GB1", 26, "€45.00m", "€1.17bn")}
+    ${row(3, "real-madrid", 418, "Real Madrid", "LaLiga", "ES1", 24, "€50.20m", "€1.20bn")}
+    ${row(4, "fc-bayern-munchen", 27, "FC Bayern M&uuml;nchen", "Bundesliga", "L1", 28, "€33.10m", "€927.50m")}
+  </tbody></table>`;
+
+  it("reads clubs and ranks them by total value regardless of page order", () => {
+    const clubs = parseValuableClubs(html);
+    expect(clubs.map((c) => c.name)).toEqual([
+      "Real Madrid",
+      "Arsenal FC",
+      "Manchester City",
+      "FC Bayern München",
+    ]);
+    expect(clubs.map((c) => c.rank)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("uses the total, not the average per player", () => {
+    const city = parseValuableClubs(html).find((c) => c.id === "281");
+    expect(city?.marketValue).toBe(1_160_000_000);
+    expect(parseValuableClubs(html).find((c) => c.id === "27")?.marketValue).toBe(927_500_000);
+  });
+
+  it("reads league, squad size and crest", () => {
+    const real = parseValuableClubs(html).find((c) => c.id === "418");
+    expect(real?.league).toEqual({ id: "ES1", name: "LaLiga" });
+    expect(real?.squadSize).toBe(24);
+    expect(real?.imageUrl).toBe("https://tmssl.akamaized.net/images/wappen/tiny/418.png");
+  });
+
+  it("ignores header rows and rows without a value, and de-duplicates", () => {
+    const dup =
+      html + row(9, "real-madrid", 418, "Real Madrid", "LaLiga", "ES1", 24, "€1m", "€1.20bn");
+    expect(parseValuableClubs(dup)).toHaveLength(4);
+    expect(parseValuableClubs("<table><tr><th>#</th></tr></table>")).toEqual([]);
+    expect(parseValuableClubs("")).toEqual([]);
   });
 });

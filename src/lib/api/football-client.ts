@@ -44,9 +44,17 @@ function readDailyHeaders(res: Response): void {
   }
 }
 
+/** Längsta väntan vi accepterar. Längre än så får anroparen falla tillbaka på en annan källa. */
+export const MAX_BUDGET_WAIT_MS = 3_000;
+
 async function waitForMinuteBudget(): Promise<void> {
   if (state.minuteRemaining <= 1 && Date.now() < state.minuteResetAt) {
     const waitMs = state.minuteResetAt - Date.now();
+    // Att sova i upp till en minut blockerar hela förfrågan (och kan få serverfunktionen att
+    // gå över sin tidsgräns). Då är det bättre att misslyckas direkt och låta nästa källa ta över.
+    if (waitMs > MAX_BUDGET_WAIT_MS) {
+      throw new Error("API-Footballs minutgräns är nådd. Försök igen om en stund.");
+    }
     await sleep(waitMs);
   }
 }
