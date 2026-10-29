@@ -3,12 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { SearchBox } from "@/components/site-header";
 import { Section } from "@/components/ui-bits";
-import {
-  tmPlayersBatch,
-  tmClubsBatch,
-  tmCompetitionTable,
-  tmMostValuableClubs,
-} from "@/lib/tm.functions";
+import { tmCompetitionTable, tmMostValuableClubs, tmMostValuablePlayers } from "@/lib/tm.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,45 +26,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Index,
 });
-
-const WORLD_PLAYERS = [
-  "342229",
-  "418560",
-  "937958",
-  "581678",
-  "371998",
-  "433177",
-  "598577",
-  "580195",
-  "683840",
-  "369081",
-];
-const SWEDEN_PLAYERS = [
-  "325443",
-  "349066",
-  "431755",
-  "866246",
-  "931838",
-  "667287",
-  "583189",
-  "503075",
-];
-const TOP_CLUBS = [
-  "418",
-  "281",
-  "11",
-  "31",
-  "131",
-  "583",
-  "27",
-  "631",
-  "46",
-  "985",
-  "148",
-  "506",
-  "13",
-  "16",
-];
 
 const FORM_LEAGUES = [
   { id: "GB1", name: "Premier League" },
@@ -98,20 +54,43 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-function PlayerList({ ids }: { ids: string[] }) {
+const LIST_SIZE = 10;
+
+function RankingError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <p className="text-sm text-destructive">
+      {message}{" "}
+      <button className="underline" onClick={onRetry}>
+        Försök igen
+      </button>
+    </p>
+  );
+}
+
+// Följer Transfermarkts egen lista (Most valuable players), så att ordning och siffror stämmer med
+// källan. "Dyraste i Sverige" är samma lista filtrerad på svenska spelare.
+function PlayerList({ scope }: { scope: "world" | "sweden" }) {
   const q = useQuery({
-    queryKey: ["tm-batch", ids],
-    queryFn: () => tmPlayersBatch({ data: ids }),
+    queryKey: ["tm-valuable-players", scope],
+    queryFn: () => tmMostValuablePlayers({ data: scope }),
     staleTime: 3600_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
-  if (q.isLoading) return <p className="text-sm text-muted-foreground">Hämtar marknadsvärden…</p>;
-  if (q.error) return <p className="text-sm text-destructive">{(q.error as Error).message}</p>;
-  const top = [...(q.data ?? [])]
-    .sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0))
-    .slice(0, 5);
+  if (q.isLoading) {
+    return <p className="text-sm text-muted-foreground">Hämtar Transfermarkts spelarlista…</p>;
+  }
+  if (q.error || !q.data) {
+    return (
+      <RankingError
+        message="Transfermarkts spelarlista gick inte att läsa just nu."
+        onRetry={() => q.refetch()}
+      />
+    );
+  }
   return (
     <ol className="divide-y">
-      {top.map((p: any, i: number) => (
+      {q.data.slice(0, LIST_SIZE).map((p) => (
         <li key={p.id}>
           <Link
             to="/proffs/spelare/$id"
@@ -119,24 +98,20 @@ function PlayerList({ ids }: { ids: string[] }) {
             className="flex items-center gap-4 py-3 hover:text-primary"
           >
             <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">
-              {i + 1}
+              {p.rank}
             </span>
             {p.imageUrl && (
               <img
                 src={p.imageUrl}
                 alt=""
-                className="size-12 rounded-full border object-cover"
+                className="size-12 rounded-full border bg-muted object-cover object-top"
                 loading="lazy"
               />
             )}
             <span className="flex-1">
               <span className="block font-display text-lg font-bold">{p.name}</span>
               <span className="text-xs text-muted-foreground">
-                {[
-                  typeof p.position === "string" ? p.position : p.position?.main,
-                  p.club?.name,
-                  p.age ? `${p.age} år` : null,
-                ]
+                {[p.position, p.club?.name, p.age ? `${p.age} år` : null]
                   .filter(Boolean)
                   .join(" · ")}
               </span>
@@ -151,102 +126,64 @@ function PlayerList({ ids }: { ids: string[] }) {
   );
 }
 
-function ClubRow({
-  rank,
-  name,
-  image,
-  meta,
-  value,
-}: {
-  rank: number;
-  name: string;
-  image?: string | undefined;
-  meta: string;
-  value?: number | undefined;
-}) {
-  return (
-    <li className="flex items-center gap-4 py-3">
-      <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">{rank}</span>
-      {image && <img src={image} alt="" className="size-10 object-contain" loading="lazy" />}
-      <span className="flex-1">
-        <span className="block font-display text-lg font-bold">{name}</span>
-        <span className="text-xs text-muted-foreground">{meta}</span>
-      </span>
-      <span className="font-display text-xl font-extrabold text-primary">{eur(value)}</span>
-    </li>
-  );
-}
-
-// Följer Transfermarkts egen rankinglista (Most valuable teams), så att siffrorna stämmer med källan.
-// Bara om den inte går att läsa visas den äldre reservlistan, tydligt märkt.
+// Följer Transfermarkts egen lista (Most valuable teams). Klubbmärkena hämtas i storleken "big"
+// (180 px) i stället för listans 15 px-ikoner, annars blir de suddiga och pixliga.
 function ClubList() {
-  const ranking = useQuery({
+  const q = useQuery({
     queryKey: ["tm-valuable-clubs"],
     queryFn: () => tmMostValuableClubs(),
-    staleTime: 6 * 3600_000,
+    staleTime: 3600_000,
     retry: 1,
     refetchOnWindowFocus: false,
   });
-  const fallback = useQuery({
-    queryKey: ["tm-clubs", TOP_CLUBS],
-    queryFn: () => tmClubsBatch({ data: TOP_CLUBS }),
-    staleTime: 3600_000,
-    enabled: ranking.isError,
-    refetchOnWindowFocus: false,
-  });
-
-  if (ranking.isLoading) {
-    return <p className="text-sm text-muted-foreground">Hämtar Transfermarkts rankinglista…</p>;
+  if (q.isLoading) {
+    return <p className="text-sm text-muted-foreground">Hämtar Transfermarkts klubblista…</p>;
   }
-
-  if (ranking.data) {
+  if (q.error || !q.data) {
     return (
-      <ol className="divide-y">
-        {ranking.data.map((c) => (
-          <ClubRow
-            key={c.id}
-            rank={c.rank}
-            name={c.name}
-            image={c.imageUrl}
-            meta={[c.league?.name, c.squadSize ? `trupp på ${c.squadSize} spelare` : null]
-              .filter(Boolean)
-              .join(" · ")}
-            value={c.marketValue}
-          />
-        ))}
-      </ol>
+      <RankingError
+        message="Transfermarkts klubblista gick inte att läsa just nu."
+        onRetry={() => q.refetch()}
+      />
     );
   }
-
-  if (fallback.isLoading) {
-    return <p className="text-sm text-muted-foreground">Hämtar truppvärden…</p>;
-  }
-  const top = [...(fallback.data ?? [])]
-    .filter((c: any) => c.name && c.currentMarketValue)
-    .sort((a: any, b: any) => (b.currentMarketValue ?? 0) - (a.currentMarketValue ?? 0))
-    .slice(0, 5);
   return (
-    <>
-      <p className="mb-2 text-xs text-destructive">
-        Transfermarkts rankinglista gick inte att läsa just nu. Visar ett urval av storklubbar i
-        stället, så ordningen kan avvika från Transfermarkt.{" "}
-        <button className="underline" onClick={() => ranking.refetch()}>
-          Försök igen
-        </button>
-      </p>
-      <ol className="divide-y">
-        {top.map((c: any, i: number) => (
-          <ClubRow
-            key={c.id}
-            rank={i + 1}
-            name={c.name}
-            image={c.image}
-            meta={c.league?.name ?? ""}
-            value={c.currentMarketValue}
-          />
-        ))}
-      </ol>
-    </>
+    <ol className="divide-y">
+      {q.data.slice(0, LIST_SIZE).map((c) => (
+        <li key={c.id}>
+          <Link
+            to="/lag/$id"
+            params={{ id: c.id }}
+            className="flex items-center gap-4 py-3 hover:text-primary"
+          >
+            <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">
+              {c.rank}
+            </span>
+            {c.imageUrl ? (
+              <img
+                src={c.imageUrl}
+                alt=""
+                width={48}
+                height={48}
+                className="size-12 shrink-0 object-contain"
+                loading="lazy"
+              />
+            ) : (
+              <span className="size-12 shrink-0" aria-hidden="true" />
+            )}
+            <span className="flex-1">
+              <span className="block font-display text-lg font-bold">{c.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {[c.league?.name, c.country].filter(Boolean).join(" · ")}
+              </span>
+            </span>
+            <span className="font-display text-xl font-extrabold text-primary">
+              {eur(c.marketValue)}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -349,10 +286,10 @@ function Index() {
         right={<span className="text-xs text-muted-foreground">Källa: Transfermarkt</span>}
       >
         <div className={tab === "world" ? "block" : "hidden"}>
-          <PlayerList ids={WORLD_PLAYERS} />
+          <PlayerList scope="world" />
         </div>
         <div className={tab === "sweden" ? "block" : "hidden"}>
-          <PlayerList ids={SWEDEN_PLAYERS} />
+          <PlayerList scope="sweden" />
         </div>
         <div className={tab === "clubs" ? "block" : "hidden"}>
           <ClubList />

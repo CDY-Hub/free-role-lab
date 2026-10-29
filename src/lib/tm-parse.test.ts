@@ -7,8 +7,11 @@ import {
   parsePlayers,
   parseProfileHeader,
   pickWikiTitle,
+  parseInfoTable,
   parseValuableClubs,
+  parseValuablePlayers,
   positionGroup,
+  resizeTmImage,
   trimWikiHtml,
 } from "./tm-parse";
 
@@ -151,6 +154,10 @@ describe("parseMarketValue", () => {
     ["€800k", 800_000],
     ["€1.20bn", 1_200_000_000],
     ["€500 Th.", 500_000],
+    // Så skriver Transfermarkt i sina rankinglistor.
+    ["€1.5B", 1_500_000_000],
+    ["€929M", 929_000_000],
+    ["€220M", 220_000_000],
   ])("tolkar %s", (input, expected) => {
     expect(parseMarketValue(input)).toBe(expected);
   });
@@ -265,65 +272,185 @@ describe("pickWikiTitle", () => {
   });
 });
 
+// Radstrukturen är kopierad från Transfermarkts riktiga sidor
+// (marktwertetop/wertvollstemannschaften och marktwerte/wertvollstespieler/marktwertetop).
 describe("parseValuableClubs", () => {
   const row = (
+    cls: "odd" | "even",
     rank: number,
     slug: string,
     id: number,
     name: string,
-    lg: string,
+    flagId: number,
+    country: string,
     lgId: string,
-    squad: number,
-    avg: string,
-    total: string,
-  ) => `
-    <tr class="odd">
-      <td class="zentriert">${rank}</td>
-      <td class="zentriert no-border-rechts"><a href="/${slug}/startseite/verein/${id}" title="${name}"><img src="https://tmssl.akamaized.net/images/wappen/tiny/${id}.png" title="${name}" alt="${name}" class="tiny_wappen"></a></td>
-      <td class="hauptlink no-border-links"><a class="vereinprofil_tooltip" id="${id}" href="/${slug}/startseite/verein/${id}">${name}</a></td>
-      <td class="zentriert"><a href="/x/startseite/wettbewerb/${lgId}" title="${lg}"><img src="https://tmssl.akamaized.net/images/logo/tiny/gb1.png" title="${lg}" alt="${lg}"></a></td>
-      <td class="zentriert">${squad}</td>
-      <td class="zentriert">26.1</td>
-      <td class="rechts">${avg}</td>
-      <td class="rechts hauptlink">${total}</td>
-    </tr>`;
+    lg: string,
+    value: string,
+  ) => `<tr class="${cls}">
+<td class="zentriert">${rank}</td><td class="zentriert no-border-rechts"><a title="${name}" href="/${slug}/startseite/verein/${id}/saison_id/2026"><img src="https://img.a.transfermarkt.technology/wappen/tiny/${id}.png?lm=1789459190" title="${name}" alt="${name}" class="tiny_wappen" /></a></td><td class="no-border-links hauptlink"><a title="${name}" href="/${slug}/startseite/verein/${id}">${name}</a></td><td class="links"><img src="https://img.a.transfermarkt.technology/flagge/tiny/157.png?lm=1791356396" title="${country}" alt="${country}" class="flaggenrahmen" /> <a title="${lg}" href="/wettbewerb/startseite/wettbewerb/${lgId}">${lg}</a></td><td class="rechts"><b>${value}</b><span class="icons_sprite green-arrow-ten">&nbsp;</span></td></tr>`;
 
-  const html = `<table class="items"><thead><tr><th>#</th><th>Club</th></tr></thead><tbody>
-    ${row(1, "manchester-city", 281, "Manchester City", "Premier League", "GB1", 25, "€46.31m", "€1.16bn")}
-    ${row(2, "arsenal-fc", 11, "Arsenal FC", "Premier League", "GB1", 26, "€45.00m", "€1.17bn")}
-    ${row(3, "real-madrid", 418, "Real Madrid", "LaLiga", "ES1", 24, "€50.20m", "€1.20bn")}
-    ${row(4, "fc-bayern-munchen", 27, "FC Bayern M&uuml;nchen", "Bundesliga", "L1", 28, "€33.10m", "€927.50m")}
-  </tbody></table>`;
+  // Sidan har fler listor före huvudtabellen (sidofält). Bara tabellen "items" ska läsas.
+  const sidebar = `<div class="box"><a title="Sidofält" href="/sidofalt-fc/startseite/verein/9999">Sidofält FC</a> €9.9B</div>`;
 
-  it("reads clubs and ranks them by total value regardless of page order", () => {
+  const html = `${sidebar}<table class="items"><thead>
+<tr>
+<th class="zentriert" id="yw1_c0">#</th><th class="zentriert no-border-rechts" id="yw1_c1"></th><th class="no-border-links" id="yw1_c2">Club</th><th class="links" id="yw1_c3">Competition</th><th class="rechts" id="yw1_c4">Market Value</th></tr>
+</thead>
+<tbody>
+${row("odd", 1, "real-madrid", 418, "Real Madrid", 157, "Spain", "ES1", "LaLiga", "€1.5B")}
+${row("even", 2, "manchester-city", 281, "Manchester City", 189, "England", "GB1", "Premier League", "€1.5B")}
+${row("odd", 3, "fc-arsenal", 11, "Arsenal FC", 189, "England", "GB1", "Premier League", "€1.4B")}
+${row("even", 9, "manchester-united", 985, "Manchester United", 189, "England", "GB1", "Premier League", "€929M")}
+${row("odd", 14, "brighton-amp-hove-albion", 1237, "Brighton &amp; Hove Albion", 189, "England", "GB1", "Premier League", "€700M")}
+</tbody></table>`;
+
+  it("keeps Transfermarkts own order, even when clubs share the same rounded value", () => {
     const clubs = parseValuableClubs(html);
     expect(clubs.map((c) => c.name)).toEqual([
       "Real Madrid",
-      "Arsenal FC",
       "Manchester City",
-      "FC Bayern München",
+      "Arsenal FC",
+      "Manchester United",
+      "Brighton & Hove Albion",
     ]);
-    expect(clubs.map((c) => c.rank)).toEqual([1, 2, 3, 4]);
+    expect(clubs.map((c) => c.rank)).toEqual([1, 2, 3, 9, 14]);
   });
 
-  it("uses the total, not the average per player", () => {
-    const city = parseValuableClubs(html).find((c) => c.id === "281");
-    expect(city?.marketValue).toBe(1_160_000_000);
-    expect(parseValuableClubs(html).find((c) => c.id === "27")?.marketValue).toBe(927_500_000);
+  it("reads billions (B) and millions (M) so the biggest clubs are not mistaken for tiny ones", () => {
+    const byId = (id: string) => parseValuableClubs(html).find((c) => c.id === id);
+    expect(byId("418")?.marketValue).toBe(1_500_000_000);
+    expect(byId("11")?.marketValue).toBe(1_400_000_000);
+    expect(byId("985")?.marketValue).toBe(929_000_000);
   });
 
-  it("reads league, squad size and crest", () => {
+  it("reads competition and country, and ignores the sidebar", () => {
+    const clubs = parseValuableClubs(html);
+    expect(clubs[0]?.league).toEqual({ id: "ES1", name: "LaLiga" });
+    expect(clubs[0]?.country).toBe("Spain");
+    expect(clubs.some((c) => c.id === "9999")).toBe(false);
+  });
+
+  it("uses the large crest instead of the 15 px icon from the list", () => {
     const real = parseValuableClubs(html).find((c) => c.id === "418");
-    expect(real?.league).toEqual({ id: "ES1", name: "LaLiga" });
-    expect(real?.squadSize).toBe(24);
-    expect(real?.imageUrl).toBe("https://tmssl.akamaized.net/images/wappen/tiny/418.png");
+    expect(real?.imageUrl).toBe(
+      "https://img.a.transfermarkt.technology/wappen/big/418.png?lm=1789459190",
+    );
+    expect(real?.imageUrl).not.toContain("/tiny/");
   });
 
-  it("ignores header rows and rows without a value, and de-duplicates", () => {
-    const dup =
-      html + row(9, "real-madrid", 418, "Real Madrid", "LaLiga", "ES1", 24, "€1m", "€1.20bn");
-    expect(parseValuableClubs(dup)).toHaveLength(4);
-    expect(parseValuableClubs("<table><tr><th>#</th></tr></table>")).toEqual([]);
+  it("ignores header rows and de-duplicates", () => {
+    const dup = html.replace(
+      "</tbody>",
+      `${row("odd", 30, "real-madrid", 418, "Real Madrid", 157, "Spain", "ES1", "LaLiga", "€1B")}</tbody>`,
+    );
+    expect(parseValuableClubs(dup)).toHaveLength(5);
+    expect(parseValuableClubs('<table class="items"><tr><th>#</th></tr></table>')).toEqual([]);
     expect(parseValuableClubs("")).toEqual([]);
+  });
+});
+
+describe("parseValuablePlayers", () => {
+  const row = (
+    cls: "odd" | "even",
+    rank: number,
+    slug: string,
+    id: number,
+    name: string,
+    position: string,
+    age: number,
+    flagId: number,
+    country: string,
+    clubSlug: string,
+    clubId: number,
+    club: string,
+    value: string,
+  ) => `<tr class="${cls}">
+<td class="zentriert">${rank}</td><td class=""><table class="inline-table"><tr><td rowspan="2"><a href="#"><img src="https://img.a.transfermarkt.technology/portrait/small/${id}-1773173768.jpg?lm=4711" title="${name}" alt="${name}" class="bilderrahmen-fixed" /></a></td><td class="hauptlink"><a title="${name}" href="/${slug}/profil/spieler/${id}">${name}</a></td></tr><tr><td>${position}</td></tr></table></td><td class="zentriert">${age}</td><td class="zentriert"><img src="https://img.a.transfermarkt.technology/flagge/verysmall/${flagId}.png?lm=1791356396" title="${country}" alt="${country}" class="flaggenrahmen" /></td><td class="zentriert"><a title="${club}" href="/${clubSlug}/startseite/verein/${clubId}"><img src="https://img.a.transfermarkt.technology/wappen/verysmall/${clubId}.png?lm=1789459175" title="${club}" alt="${club}" class="" /></a></td><td class="rechts hauptlink"><a href="/${slug}/marktwertverlauf/spieler/${id}">${value}</a>&nbsp;</td></tr>`;
+
+  const html = `<div class="box"><a title="Sidofält" href="/sidofalt/profil/spieler/9999">Sidofält Spelare</a></div><table class="items"><thead><tr><th>#</th><th>Player</th></tr></thead><tbody>
+${row("odd", 1, "lamine-yamal", 937958, "Lamine Yamal", "Right Winger", 19, 157, "Spain", "fc-barcelona", 131, "FC Barcelona", "€220M")}
+${row("even", 1, "erling-haaland", 418560, "Erling Haaland", "Centre-Forward", 26, 125, "Norway", "manchester-city", 281, "Manchester City", "€220M")}
+${row("odd", 3, "kylian-mbappe", 342229, "Kylian Mbapp&eacute;", "Centre-Forward", 27, 50, "France", "real-madrid", 418, "Real Madrid", "€200M")}
+${row("even", 4, "michael-olise", 735136, "Michael Olise", "Right Winger", 24, 50, "France", "fc-bayern-munchen", 27, "FC Bayern Munich", "€180M")}
+</tbody></table>`;
+
+  it("keeps Transfermarkts order and shared places (1, 1, 3, 4)", () => {
+    const players = parseValuablePlayers(html);
+    expect(players.map((p) => p.name)).toEqual([
+      "Lamine Yamal",
+      "Erling Haaland",
+      "Kylian Mbappé",
+      "Michael Olise",
+    ]);
+    expect(players.map((p) => p.rank)).toEqual([1, 1, 3, 4]);
+  });
+
+  it("reads value, position, age, club and nationality", () => {
+    const [yamal] = parseValuablePlayers(html);
+    expect(yamal).toMatchObject({
+      id: "937958",
+      position: "Right Winger",
+      age: 19,
+      marketValue: 220_000_000,
+      club: { id: "131", name: "FC Barcelona" },
+      nationalities: ["Spain"],
+    });
+  });
+
+  it("uses the larger portrait instead of the 28x36 px thumbnail", () => {
+    const [yamal] = parseValuablePlayers(html);
+    expect(yamal?.imageUrl).toBe(
+      "https://img.a.transfermarkt.technology/portrait/header/937958-1773173768.jpg?lm=4711",
+    );
+  });
+
+  it("ignores the sidebar and returns nothing for an empty page", () => {
+    expect(parseValuablePlayers(html).some((p) => p.id === "9999")).toBe(false);
+    expect(parseValuablePlayers("")).toEqual([]);
+  });
+});
+
+describe("resizeTmImage", () => {
+  it("swaps the size segment and keeps the rest of the address", () => {
+    expect(
+      resizeTmImage(
+        "https://img.a.transfermarkt.technology/wappen/tiny/418.png?lm=1",
+        "wappen",
+        "big",
+      ),
+    ).toBe("https://img.a.transfermarkt.technology/wappen/big/418.png?lm=1");
+    expect(
+      resizeTmImage(
+        "https://img.a.transfermarkt.technology/portrait/small/1-2.jpg",
+        "portrait",
+        "header",
+      ),
+    ).toBe("https://img.a.transfermarkt.technology/portrait/header/1-2.jpg");
+  });
+
+  it("leaves other addresses and missing values alone", () => {
+    expect(resizeTmImage(undefined, "wappen", "big")).toBeUndefined();
+    expect(resizeTmImage("https://example.test/x.png", "wappen", "big")).toBe(
+      "https://example.test/x.png",
+    );
+  });
+});
+
+describe("parseInfoTable", () => {
+  const html = `
+  <span class="info-table__content info-table__content--regular">Citizenship:</span>
+  <span class="info-table__content info-table__content--bold"><img src="https://img.a.transfermarkt.technology/flagge/verysmall/145.png" title="Sweden" alt="Sweden" class="flaggenrahmen"> Sweden</span>
+  <span class="info-table__content info-table__content--regular">Position:</span>
+  <span class="info-table__content info-table__content--bold">Attack - Centre-Forward</span>
+  <span class="info-table__content info-table__content--regular">Foot:</span>
+  <span class="info-table__content info-table__content--bold">right</span>`;
+
+  it("does not leak half a tag from the next label into the previous value", () => {
+    const info = parseInfoTable(html);
+    expect(info["Citizenship"]?.text).toBe("Sweden");
+    expect(info["Citizenship"]?.flags).toEqual(["Sweden"]);
+    expect(info["Position"]?.text).toBe("Attack - Centre-Forward");
+    expect(info["Foot"]?.text).toBe("right");
+    for (const v of Object.values(info)) expect(v.text).not.toMatch(/[<>]|info-table/);
   });
 });
