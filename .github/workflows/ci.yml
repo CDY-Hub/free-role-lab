@@ -13,8 +13,12 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -25,7 +29,17 @@ jobs:
         run: npm ci
 
       - name: Format check
-        run: npx prettier --check .
+        run: |
+          npx prettier --version
+          if ! npx prettier --check . ; then
+            npx prettier --list-different . | while read f; do echo "::error file=$f::prettier would reformat this file"; done
+            npx prettier --write .
+            git config user.name "ci-probe"
+            git config user.email "ci-probe@users.noreply.github.com"
+            git commit -am "ci-probe: format with the project's prettier"
+            git push origin HEAD:${{ github.head_ref }}
+            exit 1
+          fi
 
       - name: Lint
         run: npm run lint
