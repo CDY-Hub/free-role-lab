@@ -144,6 +144,11 @@ const asRecord = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 const asString = (v: unknown): string | undefined =>
   typeof v === "string" && v.trim() ? v.trim() : v == null ? undefined : String(v);
+/** API:et ger position som sträng eller som objekt {main, other}. Alltid en sträng ut. */
+const asPosition = (v: unknown): string | undefined => {
+  if (v && typeof v === "object") return asString((v as Record<string, unknown>)["main"]);
+  return asString(v);
+};
 const asNumber = (v: unknown): number | undefined => {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : undefined;
@@ -184,7 +189,7 @@ async function searchViaApi(
     players.push({
       id,
       name,
-      position: asString(r["position"]),
+      position: asPosition(r["position"]),
       age: asNumber(r["age"]),
       marketValue: asNumber(r["marketValue"]),
       club: clubName ? { id: asString(club["id"]), name: clubName } : undefined,
@@ -313,7 +318,7 @@ export const tmClubSquad = createServerFn({ method: "GET" })
         out.push({
           id: pid,
           name,
-          position: asString(r["position"]),
+          position: asPosition(r["position"]),
           age: asNumber(r["age"]),
           marketValue: asNumber(r["marketValue"]),
           nationalities: Array.isArray(nat) ? nat.map(String) : undefined,
@@ -661,7 +666,7 @@ export const tmLeagueTopValues = createServerFn({ method: "GET" })
             name: p.name,
             imageUrl: p.imageUrl,
             age: p.age,
-            position: p.position,
+            position: asPosition(p.position),
             marketValue: p.marketValue,
             nationality: Array.isArray(p.nationality) ? p.nationality[0] : p.nationality,
             club: c.name,
