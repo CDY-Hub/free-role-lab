@@ -1,6 +1,6 @@
 # Free Role Lab
 
-En fotbollsplattform som kombinerar liveresultat, spelar- och tränardata och en AI-assistent. Tänk Forza Fotboll/Flashscore, Transfermarkt och Football Manager-scouting i ett, med målet att även täcka lägre svenska divisioner.
+En fotbollsplattform som kombinerar liveresultat, spelar- och tränardata och en AI-assistent. Tänk Forza Fotboll/Flashscore, Transfermarkt och Football Manager-scouting i ett, med fokus på de fem stora ligorna, Allsvenskan, Portugal, Nederländerna samt UEFA- och FIFA-turneringar.
 
 **Live-demo:** https://pitch-brain-hub.vercel.app
 
@@ -16,7 +16,7 @@ Det här är målbilden. Delar av den är byggda, resten är på vägen.
 
 - **Liveresultat** från API-Football: Top 5-ligorna, cuper, Champions League och Allsvenskan.
 - **Sök på spelare och tränare** via Transfermarkt. Spelarsidan ska visa tidigare matcher och prestationer. Tränarsidan ska visa klubbar och bakgrund, inklusive tidigare spelarkarriär.
-- **Tabeller och ligor** inklusive Allsvenskan, Superettan och Ettan Norra/Södra.
+- **Tabeller och ligor**: Premier League, LaLiga, Bundesliga, Serie A, Ligue 1, Allsvenskan, Liga Portugal och Eredivisie. Lägre divisioner ingår medvetet inte.
 - **FIFA och UEFA**: VM-översikt och historik för Champions League, Europa League med flera.
 - **AI-chatt som bara svarar på fotboll.** Frågor utanför fotboll avvisas. Chatten drivs av Gemini (OpenAI eller Lovables AI-gateway kan användas som alternativ).
 - **Ljust och mörkt läge** med blå accentfärg.
@@ -91,7 +91,7 @@ AI-leverantör väljs i ordningen `LOVABLE_API_KEY`, `OPENAI_API_KEY`, `GEMINI_A
 
 Se [roadmap.md](roadmap.md) för vad som är klart. Kvar att göra:
 
-- [ ] Fler divisioner, bland annat svenska division 2–3
+- [ ] Fler divisioner (pausat: fokus ligger på de åtta ligorna ovan)
 - [ ] Transferdata och trupphantering
 - [ ] Fördjupade spelarprofiler med matchhistorik
 - [ ] Mer testtäckning

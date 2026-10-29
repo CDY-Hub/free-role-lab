@@ -26,7 +26,11 @@
 - [x] Fixad seghet vid flikbyten på startsidan genom servercaching (in-memory TTL) och bibehållen DOM-montering
 - [x] Borttagna söktips/förslag på startsidan
 - [x] Maximerad spelarsökning via Transfermarkt API med flersidigt hämtande och visning av alla resultat
-- [x] Utökad ligakatalog med svenska Ettan Norra/Södra, Superettan och internationella andradivisioner
+- [x] Ligakatalog avgränsad till de fem stora ligorna, Allsvenskan, Liga Portugal och Eredivisie (Superettan, Ettan och andradivisioner borttagna)
+- [x] Sökning: timeout, parallella sidhämtningar, cache med minnestak, dubblettskydd och säkring mot strypning
+- [x] Matcher: servercache, ESPN som nyckelfri reservkälla, endast fokusligor, tydliga felmeddelanden i stället för påhittade resultat
+- [x] Mest värda klubbarna läses från Transfermarkts egen rankinglista
+- [x] UEFA: säsong 2026–27 för Champions League och Europa League samt Conference League 2021–22 till 2026–27
 
 ## Sök & Lag
 
