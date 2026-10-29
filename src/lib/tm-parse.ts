@@ -269,3 +269,141 @@ export function positionGroup(
     return "Anfallare";
   return "Övriga";
 }
+
+// ─── Profilsidor (spelare, lag, tränare) ─────────────────────────────────────
+
+export function exportFlags(html: string): string[] {
+  return flags(html);
+}
+
+function imgFromTag(html: string, hint: RegExp): string | undefined {
+  const tag = (html.match(/<img\b[^>]*>/gi) ?? []).find((t) => hint.test(t));
+  if (!tag) return undefined;
+  return absoluteUrl(attr(tag, "data-src") ?? attr(tag, "src"));
+}
+
+/** Etikett/värde-par från profilens faktaruta ("Height:", "Citizenship:" ...). */
+export function parseInfoTable(html: string): Record<string, { text: string; flags: string[] }> {
+  const out: Record<string, { text: string; flags: string[] }> = {};
+  const rx = /info-table__content--regular[^>]*>([\s\S]*?)<\/span>/gi;
+  const labels: { label: string; end: number; start: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = rx.exec(html)) !== null) {
+    labels.push({
+      label: stripTags(m[1]!).replace(/:$/, "").trim(),
+      end: m.index + m[0].length,
+      start: m.index,
+    });
+  }
+  labels.forEach((l, i) => {
+    const next = labels[i + 1]?.start ?? l.end + 1200;
+    let chunk = html.slice(l.end, Math.min(next, l.end + 1200));
+    const close = chunk.indexOf("</div>");
+    if (close >= 0) chunk = chunk.slice(0, close);
+    const text = stripTags(chunk);
+    if (l.label && text && !(l.label in out)) out[l.label] = { text, flags: flags(chunk) };
+  });
+  return out;
+}
+
+export type TmProfileHeader = {
+  name?: string | undefined;
+  shirtNumber?: string | undefined;
+  imageUrl?: string | undefined;
+  marketValue?: number | undefined;
+  club?: { id?: string | undefined; name: string } | undefined;
+  info: Record<string, { text: string; flags: string[] }>;
+};
+
+export function parseProfileHeader(html: string): TmProfileHeader {
+  const h1 = /<h1[^>]*data-header__headline-wrapper[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1];
+  let name: string | undefined;
+  let shirtNumber: string | undefined;
+  if (h1) {
+    const text = stripTags(h1);
+    const num = /^#\s*(\d{1,3})\s+/.exec(text);
+    shirtNumber = num?.[1];
+    name = text.replace(/^#\s*\d{1,3}\s+/, "").trim() || undefined;
+  }
+  if (!name) {
+    const title = /<title>([^<]+)<\/title>/i.exec(html)?.[1];
+    if (title) name = decodeEntities(title.split(/\s[-–|]\s/)[0] ?? "").trim() || undefined;
+  }
+
+  const mvBlock = /data-header__market-value-wrapper[^>]*>([\s\S]*?)<\/a>/i.exec(html)?.[1];
+  const mvText = mvBlock ? stripTags(mvBlock) : "";
+  const mv = /€\s?[\d.,]+\s?(?:bn|m|k|Th\.)?/i.exec(mvText)?.[0];
+
+  const clubM = new RegExp(
+    `data-header__club[^>]*>[\\s\\S]*?<a\\b[^>]*href="/[^"/]+/${CLUB_KIND}/(\\d+)[^"]*"[^>]*>([\\s\\S]*?)</a>`,
+    "i",
+  ).exec(html);
+  const clubName = clubM ? stripTags(clubM[2]!) : undefined;
+
+  return {
+    name,
+    shirtNumber,
+    imageUrl: imgFromTag(html, /data-header__profile-image|modal-trigger|bilderrahmen/i),
+    marketValue: parseMarketValue(mv),
+    club: clubM && clubName ? { id: clubM[1]!, name: clubName } : undefined,
+    info: parseInfoTable(html),
+  };
+}
+
+export type TmClubHeader = {
+  name?: string | undefined;
+  imageUrl?: string | undefined;
+  marketValue?: number | undefined;
+};
+
+export function parseClubHeader(html: string): TmClubHeader {
+  const base = parseProfileHeader(html);
+  const imageUrl = imgFromTag(html, /data-header__profile-image|wappen/i) ?? base.imageUrl;
+  const total = /Total market value[\s\S]{0,400}?(€\s?[\d.,]+\s?(?:bn|m|k|Th\.)?)/i.exec(
+    stripTags(html.slice(0, 60000)),
+  )?.[1];
+  return {
+    name: base.name,
+    imageUrl,
+    marketValue: base.marketValue ?? parseMarketValue(total),
+  };
+}
+
+/** Plockar bort referenser, källor och externa länkar i slutet av en Wikipedia-artikel. */
+export function trimWikiHtml(html: string): string {
+  const ids = "Notes|References|External_links|Further_reading|See_also|Sources|Bibliography";
+  const modern = new RegExp(`<div class="mw-heading[^"]*"[^>]*>\\s*<h2 id="(?:${ids})"`, "i").exec(
+    html,
+  );
+  const legacy = new RegExp(`<h2>\\s*<span class="mw-headline" id="(?:${ids})"`, "i").exec(html);
+  const cuts = [modern?.index, legacy?.index].filter((i): i is number => i != null);
+  return cuts.length ? html.slice(0, Math.min(...cuts)) : html;
+}
+
+type WikiHit = { title: string; snippet: string };
+
+/** Väljer den Wikipedia-träff som troligast är fotbollsartikeln om `name`. */
+export function pickWikiTitle(name: string, hits: WikiHit[]): string | null {
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .replace(/[^a-z0-9 ]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const n = norm(name);
+  let best: { title: string; score: number } | null = null;
+  for (const h of hits) {
+    const t = norm(h.title);
+    const snippet = stripTags(h.snippet).toLowerCase();
+    let score = 0;
+    if (t === n) score += 4;
+    else if (t.startsWith(n) || n.startsWith(t)) score += 3;
+    else if (t.includes(n) || n.includes(t)) score += 2;
+    if (/football|footballer|soccer/.test(snippet) || /football|footballer/.test(t)) score += 2;
+    if (/disambiguation|list of|season/.test(t)) score -= 3;
+    if (!best || score > best.score) best = { title: h.title, score };
+  }
+  return best && best.score >= 3 ? best.title : null;
+}

@@ -1,9 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
   parseClubs,
+  parseClubHeader,
   parseCoaches,
   parseMarketValue,
   parsePlayers,
+  parseProfileHeader,
+  pickWikiTitle,
+  trimWikiHtml,
   type TmClubHit,
   type TmCoachHit,
   type TmPlayerHit,
@@ -288,7 +292,7 @@ export const tmClubSquad = createServerFn({ method: "GET" })
   .handler(async ({ data }: { data: string }): Promise<TmPlayerHit[]> => {
     // 1. Transfermarkt-sidan med detaljerad trupp
     try {
-      const html = await tmFetch(`/en/club/kader/verein/${data}/plus/1`);
+      const html = await tmFetch(`/-/kader/verein/${data}/plus/1`);
       const players = parsePlayers(html);
       if (players.length > 0) return players;
     } catch {
@@ -322,59 +326,58 @@ export const tmClubSquad = createServerFn({ method: "GET" })
   });
 
 // ─── Player profile ────────────────────────────────────────────────────────────
+// Transfermarkt ignorerar "slug"-delen i adressen, så "-" fungerar för alla id:n.
 export const tmPlayerProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
   .handler(async ({ data }: { data: string }): Promise<any> => {
-    const html = await tmFetch(`/en/players/${data}/profile/spieler/${data}`);
+    let html: string;
+    try {
+      html = await tmFetch(`/-/profil/spieler/${data}`);
+    } catch {
+      // Visa en tom profil i stället för ett 404-fel; sidan kan fortfarande visa Wikipedia.
+      return { id: data, name: undefined, unavailable: true };
+    }
 
-    const name =
-      first(
-        html,
-        /<h1[^>]*class="[^"]*data-header__headline[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*([^<\n]+)/,
-      ) ??
-      first(html, /<title>([^<|]+)/) ??
-      data;
+    const h = parseProfileHeader(html);
+    const info = h.info;
+    const dob = info["Date of birth/Age"]?.text;
+    const age = Number(/\((\d{1,2})\)/.exec(dob ?? "")?.[1]);
+    const heightM = /([\d]),?(\d{2})/.exec(info["Height"]?.text ?? "");
+    const height = heightM ? Number(`${heightM[1]}${heightM[2]}`) : undefined;
+    const position = info["Position"]?.text;
+    const foot = info["Foot"]?.text.toLowerCase();
+    const citizenship = info["Citizenship"]?.flags.length
+      ? info["Citizenship"].flags
+      : info["Citizenship"]?.text
+        ? [info["Citizenship"].text]
+        : undefined;
+    const birthPlace = info["Place of birth"]?.text;
 
-    const imageUrl = imgUrl(
-      first(html, /class="data-header__profile-image"[^>]*src="([^"]+)"/) ??
-        first(html, /id="fotoplus"[^>]*src="([^"]+)"/),
-    );
-
-    const age = parseInt(
-      first(html, /class="[^"]*data-header__content[^"]*"[^>]*>\s*(\d{2})\s*<\/span>/) ?? "0",
-      10,
-    );
-    const mvStr = first(html, /class="[^"]*tm-player-market-value[^"]*"[^>]*>([^<]+)</);
-    const marketValue = parseMV(mvStr);
-    const position =
-      first(
-        html,
-        /class="[^"]*data-header__label[^"]*"[^>]*>Position<\/span>[^<]*<span[^>]*>([^<]+)</,
-      ) ?? undefined;
-    const clubName = first(html, /class="[^"]*data-header__club[^"]*"[^>]*>\s*<[^>]+>([^<]+)<\//);
-    const clubId = first(html, /\/clubs\/(\d+)\/profile\/verein\//);
-
-    // Return shape matches what proffs.spelare.$id.tsx expects (extra fields are undefined)
     return {
       id: data,
-      name: name?.trim(),
-      imageUrl,
-      age: age || undefined,
-      marketValue,
+      name: h.name,
+      imageUrl: h.imageUrl,
+      age: Number.isFinite(age) ? age : undefined,
+      marketValue: h.marketValue,
       marketValueDetails: null,
-      position: position ? { main: position, other: [] } : undefined,
-      citizenship: undefined,
+      position: position ? { main: position.replace(/^[A-Za-z ]+ - /, ""), other: [] } : undefined,
+      citizenship,
       nationalTeam: null,
-      nameInHomeCountry: undefined,
-      dateOfBirth: undefined,
-      placeOfBirth: undefined,
-      height: undefined,
-      foot: undefined,
-      shirtNumber: undefined,
-      outfitter: undefined,
-      agent: undefined,
-      club: clubName
-        ? { name: clubName.trim(), id: clubId, joined: undefined, contractExpires: undefined }
+      nameInHomeCountry: info["Name in home country"]?.text,
+      dateOfBirth: dob?.replace(/\s*\(\d{1,2}\)\s*$/, ""),
+      placeOfBirth: birthPlace ? { city: birthPlace, country: undefined } : undefined,
+      height,
+      foot,
+      shirtNumber: h.shirtNumber,
+      outfitter: info["Outfitter"]?.text,
+      agent: info["Player agent"]?.text ? { name: info["Player agent"].text } : undefined,
+      club: h.club
+        ? {
+            name: h.club.name,
+            id: h.club.id,
+            joined: info["Joined"]?.text,
+            contractExpires: info["Contract expires"]?.text,
+          }
         : null,
     };
   });
@@ -384,7 +387,7 @@ export const tmPlayerStats = createServerFn({ method: "GET" })
   .inputValidator(id)
   .handler(async ({ data }: { data: string }) => {
     // Return minimal stats from profile page
-    const html = await tmFetch(`/en/players/${data}/stats/spieler/${data}`);
+    const html = await tmFetch(`/-/leistungsdatendetails/spieler/${data}`);
     // Parse season rows
     const stats: any[] = [];
     const rowRx = /<tr[^>]*class="[^"]*(?:odd|even)[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
@@ -409,7 +412,7 @@ export const tmPlayerStats = createServerFn({ method: "GET" })
 export const tmPlayerTransfers = createServerFn({ method: "GET" })
   .inputValidator(id)
   .handler(async ({ data }: { data: string }) => {
-    const html = await tmFetch(`/en/players/${data}/transfers/spieler/${data}`);
+    const html = await tmFetch(`/-/transfers/spieler/${data}`);
     const transfers: any[] = [];
     const rx =
       /class="tm-player-transfer-history-grid__club-link"[^>]*>([^<]+)<[\s\S]*?class="tm-player-transfer-history-grid__fee"[^>]*>([^<]+)</gi;
@@ -431,44 +434,48 @@ export const tmPlayerMatches = createServerFn({ method: "GET" })
 export const tmCoachProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
   .handler(async ({ data }: { data: string }): Promise<any> => {
-    const html = await tmFetch(`/en/coaches/${data}/profile/trainer/${data}`);
-    const name =
-      first(
-        html,
-        /<h1[^>]*class="[^"]*data-header__headline[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*([^<\n]+)/,
-      ) ??
-      first(html, /<title>([^<|]+)/) ??
-      data;
-    const imageUrl = imgUrl(first(html, /class="data-header__profile-image"[^>]*src="([^"]+)"/));
-    return {
-      id: data,
-      name: name?.trim(),
-      imageUrl,
-      license: undefined,
-      age: undefined,
-      citizenship: undefined,
-      nameInHomeCountry: undefined,
-      dateOfBirth: undefined,
-      placeOfBirth: undefined,
-    };
+    try {
+      const html = await tmFetch(`/-/profil/trainer/${data}`);
+      const h = parseProfileHeader(html);
+      const dob = h.info["Date of birth/Age"]?.text;
+      const age = Number(/\((\d{1,2})\)/.exec(dob ?? "")?.[1]);
+      return {
+        id: data,
+        name: h.name,
+        imageUrl: h.imageUrl,
+        license: h.info["Coaching Licence"]?.text,
+        age: Number.isFinite(age) ? age : undefined,
+        citizenship: h.info["Citizenship"]?.flags,
+        nameInHomeCountry: h.info["Name in home country"]?.text,
+        dateOfBirth: dob?.replace(/\s*\(\d{1,2}\)\s*$/, ""),
+        placeOfBirth: undefined,
+      };
+    } catch {
+      return { id: data, name: undefined, unavailable: true };
+    }
   });
 
 // ─── Club profile ──────────────────────────────────────────────────────────────
 export const tmClubProfile = createServerFn({ method: "GET" })
   .inputValidator(id)
   .handler(async ({ data }: { data: string }) => {
-    const html = await tmFetch(`/en/clubs/${data}/profile/verein/${data}`);
-    const name =
-      first(
-        html,
-        /<h1[^>]*class="[^"]*data-header__headline[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*([^<\n]+)/,
-      ) ??
-      first(html, /<title>([^<|]+)/) ??
-      data;
-    const image = imgUrl(first(html, /class="data-header__profile-image"[^>]*src="([^"]+)"/));
-    const mvStr = first(html, /class="[^"]*tm-club-market-value[^"]*"[^>]*>([^<]+)</);
-    const currentMarketValue = parseMV(mvStr);
-    return { id: data, name: name?.trim(), image, currentMarketValue };
+    try {
+      const html = await tmFetch(`/-/startseite/verein/${data}`);
+      const c = parseClubHeader(html);
+      return {
+        id: data,
+        name: c.name,
+        image: c.imageUrl,
+        currentMarketValue: c.marketValue,
+      };
+    } catch {
+      return {
+        id: data,
+        name: undefined as string | undefined,
+        image: undefined as string | undefined,
+        currentMarketValue: undefined as number | undefined,
+      };
+    }
   });
 
 // ─── Players batch ─────────────────────────────────────────────────────────────
@@ -506,38 +513,93 @@ const wikiTitle = (d: unknown) => {
   return d.trim();
 };
 
+const WIKI_HEADERS = {
+  "User-Agent": "FreeRoleLab/1.0 (fotbollsstatistik)",
+  accept: "application/json",
+};
+
+async function fetchWikiHtml(title: string): Promise<{ title: string; html: string }> {
+  const cacheKey = `wiki:${title}`;
+  const hit = getCached<{ title: string; html: string }>(cacheKey);
+  if (hit) return hit;
+
+  const res = await fetch(
+    `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text|displaytitle&format=json&formatversion=2&redirects=1`,
+    { headers: WIKI_HEADERS },
+  );
+  const body: any = await res.json().catch(() => null);
+  if (!res.ok || !body?.parse?.text) throw new Error("Kunde inte hämta artikeln från Wikipedia.");
+  let html: string = body.parse.text;
+  html = html
+    .replace(/href="\/wiki\//g, 'href="https://en.wikipedia.org/wiki/')
+    .replace(/href="\/w\//g, 'href="https://en.wikipedia.org/w/')
+    .replace(
+      /<a href="https:\/\/en\.wikipedia\.org/g,
+      '<a target="_blank" rel="noopener" href="https://en.wikipedia.org',
+    )
+    .replace(/src="\/\//g, 'src="https://')
+    .replace(/srcset="\/\//g, 'srcset="https://');
+  const result = { title: body.parse.title as string, html };
+  setCache(cacheKey, result, 86_400_000);
+  return result;
+}
+
 export const wikiPage = createServerFn({ method: "GET" })
   .inputValidator(wikiTitle)
-  .handler(async ({ data }: { data: string }) => {
-    const cacheKey = `wiki:${data}`;
-    const hit = getCached<{ title: string; html: string }>(cacheKey);
-    if (hit) return hit;
+  .handler(async ({ data }: { data: string }) => fetchWikiHtml(data));
 
-    const res = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(data)}&prop=text|displaytitle&format=json&formatversion=2&redirects=1`,
-      {
-        headers: {
-          "User-Agent": "FreeRoleLab/1.0 (fotbollsstatistik)",
-          accept: "application/json",
-        },
-      },
-    );
-    const body: any = await res.json().catch(() => null);
-    if (!res.ok || !body?.parse?.text) throw new Error("Kunde inte hämta artikeln från Wikipedia.");
-    let html: string = body.parse.text;
-    html = html
-      .replace(/href="\/wiki\//g, 'href="https://en.wikipedia.org/wiki/')
-      .replace(/href="\/w\//g, 'href="https://en.wikipedia.org/w/')
-      .replace(
-        /<a href="https:\/\/en\.wikipedia\.org/g,
-        '<a target="_blank" rel="noopener" href="https://en.wikipedia.org',
-      )
-      .replace(/src="\/\//g, 'src="https://')
-      .replace(/srcset="\/\//g, 'srcset="https://');
-    const result = { title: body.parse.title as string, html };
-    setCache(cacheKey, result, 86_400_000);
-    return result;
-  });
+// Slår upp fotbollsartikeln för ett lag, en spelare eller en tränare på Wikipedia.
+const wikiQuery = (d: unknown) => {
+  const o = (d && typeof d === "object" ? d : {}) as Record<string, unknown>;
+  const name = o["name"];
+  const kind = o["kind"];
+  if (typeof name !== "string" || !name.trim() || name.length > 100)
+    throw new Error("Ogiltigt namn");
+  if (kind !== "club" && kind !== "player" && kind !== "coach") throw new Error("Ogiltig typ");
+  return { name: name.trim(), kind } as { name: string; kind: "club" | "player" | "coach" };
+};
+
+const WIKI_SUFFIX = { club: "football club", player: "footballer", coach: "football manager" };
+
+export type WikiArticle = { title: string; html: string; url: string } | null;
+
+export const wikiArticle = createServerFn({ method: "GET" })
+  .inputValidator(wikiQuery)
+  .handler(
+    async ({
+      data,
+    }: {
+      data: { name: string; kind: "club" | "player" | "coach" };
+    }): Promise<WikiArticle> => {
+      const cacheKey = `wikiart:${data.kind}:${data.name.toLowerCase()}`;
+      const hit = getCached<WikiArticle>(cacheKey);
+      if (hit !== null) return hit;
+      try {
+        const q = encodeURIComponent(`${data.name} ${WIKI_SUFFIX[data.kind]}`);
+        const res = await fetch(
+          `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${q}&srlimit=8&srprop=snippet&format=json&formatversion=2`,
+          { headers: WIKI_HEADERS },
+        );
+        const body: any = await res.json().catch(() => null);
+        const hits = ((body?.query?.search ?? []) as any[]).map((h) => ({
+          title: String(h.title ?? ""),
+          snippet: String(h.snippet ?? ""),
+        }));
+        const title = pickWikiTitle(data.name, hits);
+        if (!title) return null;
+        const page = await fetchWikiHtml(title);
+        const result: WikiArticle = {
+          title: page.title,
+          html: trimWikiHtml(page.html),
+          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`,
+        };
+        setCache(cacheKey, result, 86_400_000);
+        return result;
+      } catch {
+        return null;
+      }
+    },
+  );
 
 // ─── Competition table ─────────────────────────────────────────────────────────
 const TM_API_BASE = "https://transfermarkt-api.fly.dev";

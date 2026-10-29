@@ -122,6 +122,7 @@ function LeaguePage() {
                 <Link
                   to="/proffs/spelare/$id"
                   params={{ id: p.id }}
+                  search={{ n: p.name }}
                   className="flex items-center gap-4 py-3 hover:text-primary"
                 >
                   <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">
@@ -182,6 +183,7 @@ function LeaguePage() {
                       <Link
                         to="/lag/$id"
                         params={{ id: String(r.clubId) }}
+                        search={{ n: String(r.clubName) }}
                         className="hover:text-primary"
                       >
                         {r.clubName}

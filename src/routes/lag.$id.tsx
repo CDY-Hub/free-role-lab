@@ -3,8 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Section, Stat } from "@/components/ui-bits";
 import { tmClubProfile, tmClubSquad, type TmPlayerHit } from "@/lib/tm.functions";
 import { positionGroup } from "@/lib/tm-parse";
+import { WikiSection } from "@/components/wiki-section";
 
 export const Route = createFileRoute("/lag/$id")({
+  // Namnet skickas med från sökningen så att sidan alltid har en rubrik och en Wikipedia-sökterm.
+  validateSearch: (s: Record<string, unknown>): { n?: string | undefined } =>
+    typeof s["n"] === "string" ? { n: s["n"] } : {},
   head: () => ({
     meta: [
       { title: "Lag och trupp | Free Role Lab" },
@@ -33,6 +37,7 @@ const GROUPS = ["Målvakter", "Försvarare", "Mittfältare", "Anfallare", "Övri
 
 function ClubPage() {
   const { id } = Route.useParams();
+  const { n } = Route.useSearch();
 
   const club = useQuery({
     queryKey: ["tm-club", id],
@@ -47,6 +52,7 @@ function ClubPage() {
     retry: 1,
   });
 
+  const clubName = club.data?.name ?? n;
   const players = squad.data ?? [];
   const byGroup = new Map<string, TmPlayerHit[]>();
   for (const p of players) {
@@ -69,7 +75,7 @@ function ClubPage() {
         <div>
           <p className="font-display text-sm font-bold tracking-widest text-primary">Lag</p>
           <h1 className="font-display text-4xl font-extrabold">
-            {club.data?.name ?? (club.isLoading ? "Hämtar…" : "Okänt lag")}
+            {clubName ?? (club.isLoading ? "Hämtar…" : "Okänt lag")}
           </h1>
         </div>
       </header>
@@ -83,10 +89,13 @@ function ClubPage() {
         <Stat label="Källa" value="Transfermarkt" />
       </div>
 
+      <WikiSection name={clubName} kind="club" />
+
       {squad.isLoading && <p className="text-sm text-muted-foreground">Hämtar truppen…</p>}
       {squad.data && players.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          Kunde inte hämta truppen just nu. Försök igen om en stund.{" "}
+          Kunde inte hämta truppen från Transfermarkt just nu. Nuvarande trupp finns oftast även i
+          Wikipedia-texten ovan.{" "}
           <Link to="/sok" search={{ q: "" }} className="text-primary underline">
             Tillbaka till sök
           </Link>
@@ -105,6 +114,7 @@ function ClubPage() {
                   <Link
                     to="/proffs/spelare/$id"
                     params={{ id: p.id }}
+                    search={{ n: p.name }}
                     className="flex items-center justify-between gap-3 py-2.5 text-sm transition-colors hover:text-primary"
                   >
                     <div className="flex min-w-0 items-center gap-3">

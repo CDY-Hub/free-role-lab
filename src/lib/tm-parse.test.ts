@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseClubHeader,
   parseClubs,
   parseCoaches,
   parseMarketValue,
   parsePlayers,
+  parseProfileHeader,
+  pickWikiTitle,
   positionGroup,
+  trimWikiHtml,
 } from "./tm-parse";
 
 // Exempel-HTML som följer Transfermarkts struktur (rader sträcker sig över flera rader,
@@ -166,5 +170,96 @@ describe("positionGroup", () => {
     [undefined, "Övriga"],
   ])("%s -> %s", (pos, group) => {
     expect(positionGroup(pos)).toBe(group);
+  });
+});
+
+const PROFILE = `
+<header class="data-header">
+  <div class="data-header__profile-container">
+    <img src="https://img.a.transfermarkt.technology/portrait/header/433177-1.jpg" class="data-header__profile-image" title="Viktor Gyökeres" />
+  </div>
+  <h1 class="data-header__headline-wrapper data-header__headline-wrapper--oswald">
+    <span class="data-header__shirt-number">
+      #9
+    </span>
+    Viktor <strong>Gy&ouml;keres</strong>
+  </h1>
+  <span class="data-header__club">
+    <a href="/fc-arsenal/startseite/verein/11">Arsenal FC</a>
+  </span>
+  <a class="data-header__market-value-wrapper" href="/x/marktwertverlauf/spieler/433177">
+    €60.00m <span class="waehrung">Last update: Oct 1, 2026</span>
+  </a>
+</header>
+<div class="info-table info-table--right-space">
+  <span class="info-table__content info-table__content--regular">Date of birth/Age:</span>
+  <span class="info-table__content info-table__content--bold">
+    <a href="/x">Jun 4, 1998</a> (28)
+  </span>
+  <span class="info-table__content info-table__content--regular">Height:</span>
+  <span class="info-table__content info-table__content--bold">1,87&nbsp;m</span>
+  <span class="info-table__content info-table__content--regular">Citizenship:</span>
+  <span class="info-table__content info-table__content--bold">
+    <img src="a.png" title="Sweden" class="flaggenrahmen" /> Sweden
+  </span>
+  <span class="info-table__content info-table__content--regular">Position:</span>
+  <span class="info-table__content info-table__content--bold">Attack - Centre-Forward</span>
+</div>`;
+
+describe("parseProfileHeader", () => {
+  const h = parseProfileHeader(PROFILE);
+
+  it("läser namn utan tröjnummer, bild, värde och klubb", () => {
+    expect(h.name).toBe("Viktor Gyökeres");
+    expect(h.shirtNumber).toBe("9");
+    expect(h.imageUrl).toContain("433177-1.jpg");
+    expect(h.marketValue).toBe(60_000_000);
+    expect(h.club).toEqual({ id: "11", name: "Arsenal FC" });
+  });
+
+  it("läser faktarutan", () => {
+    expect(h.info["Height"]?.text).toContain("1,87");
+    expect(h.info["Citizenship"]?.flags).toEqual(["Sweden"]);
+    expect(h.info["Position"]?.text).toBe("Attack - Centre-Forward");
+    expect(h.info["Date of birth/Age"]?.text).toContain("(28)");
+  });
+
+  it("faller tillbaka på <title> när h1 saknas", () => {
+    expect(
+      parseProfileHeader("<title>Arsenal FC - Club profile | Transfermarkt</title>").name,
+    ).toBe("Arsenal FC");
+  });
+});
+
+describe("parseClubHeader", () => {
+  it("läser klubbnamn", () => {
+    const html = `<h1 class="data-header__headline-wrapper">Arsenal FC</h1><img class="data-header__profile-image" src="https://tmssl.akamaized.net/images/wappen/head/11.png">`;
+    const c = parseClubHeader(html);
+    expect(c.name).toBe("Arsenal FC");
+    expect(c.imageUrl).toContain("wappen");
+  });
+});
+
+describe("trimWikiHtml", () => {
+  it("klipper bort referenser och externa länkar men behåller historiken", () => {
+    const html = `<p>History</p><div class="mw-heading mw-heading2"><h2 id="Honours">Honours</h2></div><p>Titles</p><div class="mw-heading mw-heading2"><h2 id="References">References</h2></div><p>refs</p>`;
+    const out = trimWikiHtml(html);
+    expect(out).toContain("Titles");
+    expect(out).not.toContain("refs");
+  });
+});
+
+describe("pickWikiTitle", () => {
+  it("väljer klubbartikeln och inte säsongs- eller listsidor", () => {
+    const hits = [
+      { title: "2025–26 Arsenal F.C. season", snippet: "football season" },
+      { title: "Arsenal F.C.", snippet: "English professional <b>football</b> club" },
+      { title: "Arsenal (disambiguation)", snippet: "Arsenal may refer to" },
+    ];
+    expect(pickWikiTitle("Arsenal", hits)).toBe("Arsenal F.C.");
+  });
+
+  it("returnerar null när inget är säkert", () => {
+    expect(pickWikiTitle("Zzzz", [{ title: "Banana", snippet: "fruit" }])).toBeNull();
   });
 });
