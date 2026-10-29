@@ -3,13 +3,13 @@ import { footballFetch } from "./api/football-client";
 import {
   ESPN_COMPETITIONS,
   apiFootballError,
+  espnDatesFor,
   espnUrl,
   leagueKeyOf,
   matchesTtlMs,
   onlyLocalDate,
   parseApiFootball,
   parseEspnScoreboard,
-  shiftDate,
   sortMatches,
   stockholmDate,
   type MatchItem,
@@ -115,28 +115,25 @@ async function fromApiFootball(date: string): Promise<Fetched | null> {
 async function fromEspn(date: string): Promise<Fetched> {
   if (espnBreaker.isOpen()) return fail("espn", "Pausad en stund efter ett fel.");
 
-  // Ett spann runt dagen, eftersom ESPN räknar dygn i amerikansk tid. Vi filtrerar på svensk dag efteråt.
-  const from = shiftDate(date, -1);
-  const to = shiftDate(date, 1);
+  const requests = ESPN_COMPETITIONS.flatMap((comp) =>
+    espnDatesFor(comp.slug, date).map((d) => ({ comp, url: espnUrl(comp.slug, d) })),
+  );
 
   let okCount = 0;
   const all: MatchItem[] = [];
   await Promise.all(
-    ESPN_COMPETITIONS.map(async (comp) => {
+    requests.map(async ({ comp, url }) => {
       try {
         const res = await fetchWithTimeout(
-          espnUrl(comp.slug, from, to),
+          url,
           { headers: { accept: "application/json" } },
           SOURCE_TIMEOUT_MS,
         );
-        // 400/404 = tävlingen finns inte i ESPN just nu (t.ex. ingen pågående turnering). Inget fel.
-        if (res.status === 400 || res.status === 404) {
-          okCount++;
-          return;
-        }
-        if (!res.ok) return;
+        // Bara HTTP 200 räknas som ett svar. Allt annat (400, 404, 5xx) betyder att vi inte vet
+        // vilka matcher som spelas, och får aldrig tolkas som "inga matcher".
+        if (res.status !== 200) return;
         const body = await res.json().catch(() => null);
-        if (!body) return;
+        if (!body || !Array.isArray(body.events)) return;
         okCount++;
         all.push(...parseEspnScoreboard(body, comp));
       } catch {
@@ -150,7 +147,16 @@ async function fromEspn(date: string): Promise<Fetched> {
     return fail("espn", "Kunde inte nå ESPN.");
   }
   const items = sortMatches(onlyLocalDate(all, date));
-  return { items, report: { source: "espn", ok: true, count: items.length } };
+  const missed = requests.length - okCount;
+  return {
+    items,
+    report: {
+      source: "espn",
+      ok: true,
+      count: items.length,
+      ...(missed > 0 ? { reason: `${missed} av ${requests.length} anrop svarade inte.` } : {}),
+    },
+  };
 }
 
 // Livescore-servern (egen driftad livescore-api) – används om LIVESCORE_API_URL är satt.

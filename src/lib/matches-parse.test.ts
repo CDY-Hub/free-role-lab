@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ESPN_COMPETITIONS,
   apiFootballError,
+  espnDatesFor,
   espnUrl,
   isFocusApiFootballLeague,
   matchesTtlMs,
@@ -125,12 +126,23 @@ describe("ESPN competitions", () => {
     expect(ESPN_COMPETITIONS.some((c) => c.slug === "swe.2" || c.slug === "swe.3")).toBe(false);
   });
 
-  it("has unique slugs and a Swedish-day request window", () => {
+  it("has unique slugs", () => {
     const slugs = ESPN_COMPETITIONS.map((c) => c.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
-    expect(espnUrl("eng.1", "2026-10-28", "2026-10-30")).toContain(
-      "/soccer/eng.1/scoreboard?dates=20261028-20261030",
+  });
+
+  it("asks ESPN for exactly one date per request (a range or limit gives HTTP 400)", () => {
+    const url = espnUrl("eng.1", "2026-10-29");
+    expect(url).toBe(
+      "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=20261029",
     );
+    expect(url).not.toMatch(/dates=\d{8}-|limit=/);
+  });
+
+  it("fetches the day before only for tournaments played in the Americas", () => {
+    expect(espnDatesFor("eng.1", "2026-10-29")).toEqual(["2026-10-29"]);
+    expect(espnDatesFor("uefa.champions", "2026-10-29")).toEqual(["2026-10-29"]);
+    expect(espnDatesFor("fifa.world", "2026-10-29")).toEqual(["2026-10-28", "2026-10-29"]);
   });
 });
 

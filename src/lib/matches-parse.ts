@@ -240,9 +240,23 @@ export const ESPN_COMPETITIONS: EspnComp[] = [
   },
 ];
 
-export function espnUrl(slug: string, from: string, to: string): string {
-  const d = (s: string) => s.replace(/-/g, "");
-  return `https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/scoreboard?dates=${d(from)}-${d(to)}&limit=200`;
+/**
+ * ESPN tar emot exakt ett datum per anrop (`dates=YYYYMMDD`). Ett spann som `20261028-20261030`
+ * eller en extra `limit` ger HTTP 400, och det var det som gjorde att matchlistan alltid var tom.
+ */
+export function espnUrl(slug: string, date: string): string {
+  return `https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/scoreboard?dates=${date.replace(/-/g, "")}`;
+}
+
+/**
+ * Vilka ESPN-dygn som behövs för en svensk dag. Europeiska tävlingar spelas inom samma dygn.
+ * Turneringar i Amerika kan ha matcher som sparas under föregående dygn men startar efter
+ * midnatt hos oss, så de hämtas även för dagen före. Därefter filtrerar onlyLocalDate på svensk dag.
+ */
+const AMERICAS_SLUGS = new Set(["fifa.world", "fifa.cwc", "fifa.friendly"]);
+
+export function espnDatesFor(slug: string, date: string): string[] {
+  return AMERICAS_SLUGS.has(slug) ? [shiftDate(date, -1), date] : [date];
 }
 
 export function parseEspnScoreboard(body: any, comp: EspnComp): MatchItem[] {

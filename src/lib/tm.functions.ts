@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
   parseValuableClubs,
+  parseValuablePlayers,
   parseClubs,
   parseClubHeader,
   parseCoaches,
@@ -12,11 +13,18 @@ import {
   type TmClubHit,
   type TmCoachHit,
   type TmPlayerHit,
+  type TmRankedPlayer,
   type TmValuableClub,
 } from "./tm-parse";
 import { Breaker, Gate, Inflight, TtlCache, fetchWithTimeout } from "./tm-net";
 
-export type { TmClubHit, TmCoachHit, TmPlayerHit, TmValuableClub } from "./tm-parse";
+export type {
+  TmClubHit,
+  TmCoachHit,
+  TmPlayerHit,
+  TmRankedPlayer,
+  TmValuableClub,
+} from "./tm-parse";
 
 // ─── Direct scraping of transfermarkt.com (the fly.dev proxy returns 403) ───
 const TM_BASE = "https://www.transfermarkt.com";
@@ -333,25 +341,63 @@ export const tmSearchAll = createServerFn({ method: "GET" })
     });
   });
 
-// ─── Mest värda klubbarna (Transfermarkts egen rankinglista) ────────────────────
-const VALUABLE_CLUBS_PATH = "/spieler-statistik/wertvollstemannschaften/marktwertetop";
+// ─── Transfermarkts rankinglistor (mest värda klubbar och spelare) ───────────────
+const CLUBS_PATH = "/marktwertetop/wertvollstemannschaften";
+const PLAYERS_PATH = "/marktwerte/wertvollstespieler/marktwertetop";
+const SWEDEN_LAND_ID = "147"; // Transfermarkts id för Sverige i landsfiltret
+const RANKING_TTL = 60 * 60_000;
+
+// Senast lyckade lista sparas längre, så att en tillfällig Transfermarkt-strypning visar
+// gårdagens lista hellre än ett felmeddelande.
+const lastGoodRankings = new TtlCache(20, 4 * 1024 * 1024);
+
+async function cachedRanking<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = getCached<T>(key);
+  if (hit) return hit;
+  return inflight.run(key, async () => {
+    try {
+      const value = await load();
+      setCache(key, value, RANKING_TTL);
+      lastGoodRankings.set(key, value, 24 * 3_600_000);
+      return value;
+    } catch (e) {
+      const old = lastGoodRankings.get<T>(key);
+      if (old) return old;
+      throw e;
+    }
+  });
+}
 
 export const tmMostValuableClubs = createServerFn({ method: "GET" }).handler(
-  async (): Promise<TmValuableClub[]> => {
-    const key = "valuable-clubs";
-    const hit = getCached<TmValuableClub[]>(key);
-    if (hit) return hit;
-    return inflight.run(key, async () => {
-      const html = await tmFetch(VALUABLE_CLUBS_PATH, 6 * 3_600_000);
+  async (): Promise<TmValuableClub[]> =>
+    cachedRanking("rank:clubs", async () => {
+      const html = await tmFetch(CLUBS_PATH, RANKING_TTL);
       const clubs = parseValuableClubs(html);
-      if (clubs.length < 3)
+      if (clubs.length < 5) {
         throw new Error("Kunde inte läsa Transfermarkts lista över mest värda klubbar.");
-      const top = clubs.slice(0, 10);
-      setCache(key, top, 6 * 3_600_000);
-      return top;
-    });
-  },
+      }
+      return clubs.slice(0, 25);
+    }),
 );
+
+const rankingScope = (d: unknown): "world" | "sweden" => {
+  if (d === "world" || d === "sweden") return d;
+  throw new Error("Ogiltig lista");
+};
+
+export const tmMostValuablePlayers = createServerFn({ method: "GET" })
+  .inputValidator(rankingScope)
+  .handler(async ({ data }: { data: "world" | "sweden" }): Promise<TmRankedPlayer[]> =>
+    cachedRanking(`rank:players:${data}`, async () => {
+      const path = data === "sweden" ? `${PLAYERS_PATH}?land_id=${SWEDEN_LAND_ID}` : PLAYERS_PATH;
+      const html = await tmFetch(path, RANKING_TTL);
+      const players = parseValuablePlayers(html);
+      if (players.length < 5) {
+        throw new Error("Kunde inte läsa Transfermarkts lista över dyraste spelare.");
+      }
+      return players.slice(0, 25);
+    }),
+  );
 
 // ─── Lagets trupp ──────────────────────────────────────────────────────────────
 export const tmClubSquad = createServerFn({ method: "GET" })

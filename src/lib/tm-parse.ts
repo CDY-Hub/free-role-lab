@@ -32,7 +32,7 @@ export type TmValuableClub = {
   name: string;
   imageUrl?: string | undefined;
   league?: { id?: string | undefined; name: string } | undefined;
-  squadSize?: number | undefined;
+  country?: string | undefined;
   /** Truppens totala marknadsvärde i euro. */
   marketValue: number;
 };
@@ -125,12 +125,12 @@ export function stripTags(s: string): string {
 /** "€150.00m" -> 150000000, "€800k" -> 800000, "-" -> undefined */
 export function parseMarketValue(s?: string): number | undefined {
   if (!s) return undefined;
-  const m = s.replace(/[€,\s]/g, "").match(/^([\d.]+)(bn|m|k|th\.)?$/i);
+  const m = s.replace(/[€,\s]/g, "").match(/^([\d.]+)(bn|b|m|k|th\.)?$/i);
   if (!m) return undefined;
   const n = parseFloat(m[1]!);
   if (!Number.isFinite(n)) return undefined;
   const unit = m[2]?.toLowerCase();
-  if (unit === "bn") return Math.round(n * 1_000_000_000);
+  if (unit === "bn" || unit === "b") return Math.round(n * 1_000_000_000);
   if (unit === "m") return Math.round(n * 1_000_000);
   if (unit === "k" || unit === "th.") return Math.round(n * 1_000);
   return Math.round(n);
@@ -253,13 +253,25 @@ export function parseClubs(html: string): TmClubHit[] {
   });
 }
 
+/** Byter bildstorlek i en Transfermarkt-bildadress, t.ex. wappen/tiny/418.png -> wappen/big/418.png. */
+export function resizeTmImage(url: string | undefined, kind: "wappen" | "portrait", size: string) {
+  if (!url) return undefined;
+  return url.replace(new RegExp(`/${kind}/[a-z]+/`, "i"), `/${kind}/${size}/`);
+}
+
+/** Första `<table class="items">` och framåt. Sidorna har sidofält med fler listor som inte ska med. */
+function fromItemsTable(html: string): string {
+  const i = html.search(/<table[^>]*class="[^"]*\bitems\b[^"]*"/i);
+  return i >= 0 ? html.slice(i) : html;
+}
+
 /**
- * Transfermarkts lista "Most valuable teams" (spieler-statistik/wertvollstemannschaften).
- * Kolumnordningen läses inte: totalvärdet är det största belopp som står på raden (snittvärden
- * per spelare är alltid mindre), och rangen sätts om efter värde så att listan alltid är i ordning.
+ * Transfermarkts lista "Most valuable clubs" (marktwertetop/wertvollstemannschaften).
+ * Raderna har rank, vapen, klubbnamn, tävling och totalt marknadsvärde ("€1.5B", "€929M").
+ * Sidans egen ordning behålls: värdena är avrundade så flera klubbar delar samma siffra.
  */
 export function parseValuableClubs(html: string): TmValuableClub[] {
-  const rows = html.split(/<tr\b/i).slice(1);
+  const rows = fromItemsTable(html).split(/<tr\b/i).slice(1);
   const out: TmValuableClub[] = [];
   const seen = new Set<string>();
   const clubRx = new RegExp(
@@ -268,10 +280,9 @@ export function parseValuableClubs(html: string): TmValuableClub[] {
   );
 
   for (const row of rows) {
-    // Klubblänken med text (inte bara vapenbilden).
+    // Klubblänken med text (vapenlänken före den har bara en bild).
     let id: string | undefined;
     let name: string | undefined;
-    let linkEnd = 0;
     clubRx.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = clubRx.exec(row)) !== null) {
@@ -279,33 +290,22 @@ export function parseValuableClubs(html: string): TmValuableClub[] {
       if (text) {
         id = m[3]!;
         name = text;
-        linkEnd = m.index + m[0].length;
         break;
       }
     }
     if (!id || !name || seen.has(id)) continue;
 
+    // Värdet står i raden som "€1.5B"/"€929M". Flera belopp: det största är totalen.
     const plain = stripTags(row).replace(/&euro;/gi, "€");
     let best: number | undefined;
-    for (const am of plain.matchAll(/€\s*([\d.,]+)\s*(bn|m|k|th\.)?/gi)) {
+    for (const am of plain.matchAll(/€\s*([\d.,]+)\s*(bn|b|m|k|th\.)?(?![A-Za-z])/gi)) {
       const v = parseMarketValue(`€${am[1]!.replace(/,/g, "")}${am[2] ?? ""}`);
       if (v != null && (best == null || v > best)) best = v;
     }
     if (best == null || best <= 0) continue;
     seen.add(id);
 
-    // Truppstorlek: första heltalet i en centrerad cell efter klubbnamnet som ser ut som en trupp.
-    const after = row.slice(linkEnd);
-    let squadSize: number | undefined;
-    for (const sm of after.matchAll(
-      /<td[^>]*class="[^"]*zentriert[^"]*"[^>]*>\s*(\d{1,3})\s*<\/td>/gi,
-    )) {
-      const n = Number(sm[1]);
-      if (n >= 11 && n <= 90) {
-        squadSize = n;
-        break;
-      }
-    }
+    const rankCell = /<td[^>]*>\s*(\d{1,3})\s*<\/td>/i.exec(row)?.[1];
 
     const lg =
       /<a\b[^>]*href="\/[^"/]+\/startseite\/wettbewerb\/([A-Za-z0-9]+)"[^>]*>([\s\S]*?)<\/a>/i.exec(
@@ -313,25 +313,67 @@ export function parseValuableClubs(html: string): TmValuableClub[] {
       );
     const lgTitle = lg ? /title="([^"]+)"/i.exec(lg[0])?.[1] : undefined;
     const lgName = lg ? stripTags(lg[2]!) || (lgTitle ? decodeEntities(lgTitle) : "") : "";
+    const country = flags(row)[0];
 
+    // Listans vapen är 15x15 px ("tiny") och ser pixlade ut. "big" är 180x180.
     const crestTag = /<img\b[^>]*wappen[^>]*>/i.exec(row)?.[0];
-    const crest = crestTag
+    const crestSrc = crestTag
       ? absoluteUrl(attr(crestTag, "data-src") ?? attr(crestTag, "src"))
       : undefined;
+    const crest = resizeTmImage(crestSrc, "wappen", "big");
+
     out.push({
-      rank: 0,
+      rank: rankCell ? Number(rankCell) : out.length + 1,
       id,
       name,
       imageUrl: crest && !/default|placeholder/i.test(crest) ? crest : undefined,
       league: lg && lgName ? { id: lg[1]!, name: lgName } : undefined,
-      squadSize,
+      country,
       marketValue: best,
     });
   }
-
-  out.sort((a, b) => b.marketValue - a.marketValue);
-  out.forEach((c, i) => (c.rank = i + 1));
   return out;
+}
+
+export type TmRankedPlayer = {
+  rank: number;
+  id: string;
+  name: string;
+  imageUrl?: string | undefined;
+  position?: string | undefined;
+  age?: number | undefined;
+  marketValue?: number | undefined;
+  club?: { id?: string | undefined; name: string } | undefined;
+  nationalities?: string[] | undefined;
+};
+
+/**
+ * Transfermarkts lista "Most valuable players" (marktwerte/wertvollstespieler/marktwertetop).
+ * Sidans rangordning behålls, inklusive delade placeringar (1, 1, 3 ...).
+ */
+export function parseValuablePlayers(html: string): TmRankedPlayer[] {
+  const scoped = fromItemsTable(html);
+  const anchors = mainAnchors(scoped, PLAYER_KIND);
+  return anchors.map((a, i) => {
+    const win = windowAfter(scoped, anchors, i);
+    // Rangcellen är närmaste centrerade heltalscell före spelarens namn.
+    const before = scoped.slice(Math.max(0, a.index - 1800), a.index);
+    const ranks = [...before.matchAll(/<td[^>]*class="zentriert"[^>]*>\s*(\d{1,3})\s*<\/td>/gi)];
+    const rank = Number(ranks[ranks.length - 1]?.[1]);
+    const img = imageBefore(scoped, a.index, /portrait|bilderrahmen/i);
+    return {
+      rank: Number.isFinite(rank) ? rank : i + 1,
+      id: a.id,
+      name: a.name,
+      // "small" är 28x36 px och blir suddig i listan; "header" är 139x181.
+      imageUrl: resizeTmImage(img, "portrait", "header"),
+      position: POSITION_RX.exec(win)?.[1],
+      age: ageIn(win),
+      marketValue: marketValueIn(win),
+      club: clubIn(win),
+      nationalities: flags(win),
+    };
+  });
 }
 
 export function parseCoaches(html: string): TmCoachHit[] {
@@ -384,7 +426,9 @@ export function parseInfoTable(html: string): Record<string, { text: string; fla
     labels.push({
       label: stripTags(m[1]!).replace(/:$/, "").trim(),
       end: m.index + m[0].length,
-      start: m.index,
+      // Början på själva <span>-taggen. Utan det klipptes föregående värde mitt i nästa tagg och
+      // skräptext som '<span class="info-table__content' hamnade i t.ex. positionen.
+      start: Math.max(0, html.lastIndexOf("<", m.index)),
     });
   }
   labels.forEach((l, i) => {
