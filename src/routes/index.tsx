@@ -3,6 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { SearchBox } from "@/components/site-header";
 import { Section } from "@/components/ui-bits";
+import { LEAGUES } from "@/lib/leagues";
 import { tmCompetitionTable, tmMostValuableClubs, tmMostValuablePlayers } from "@/lib/tm.functions";
 
 export const Route = createFileRoute("/")({
@@ -26,15 +27,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Index,
 });
-
-const FORM_LEAGUES = [
-  { id: "GB1", name: "Premier League" },
-  { id: "ES1", name: "LaLiga" },
-  { id: "IT1", name: "Serie A" },
-  { id: "L1", name: "Bundesliga" },
-  { id: "FR1", name: "Ligue 1" },
-  { id: "SE1", name: "Allsvenskan" },
-];
 
 const eur = (v?: number | null) =>
   v == null
@@ -187,23 +179,58 @@ function ClubList() {
   );
 }
 
+// Lag med färre matcher än så får inte plats på listan: efter en eller två omgångar vore den
+// annars full av lag med 100 % vinster.
+const MIN_MATCHES = 5;
+
+// Formen räknas ur ligatabellerna på Transfermarkt: poäng per match, sedan målskillnad per match.
+// Det är säsongens form hittills och inte de senaste matcherna.
 function FormList() {
   const tables = useQueries({
-    queries: FORM_LEAGUES.map((l) => ({
+    queries: LEAGUES.map((l) => ({
       queryKey: ["tm-table", l.id],
       queryFn: () => tmCompetitionTable({ data: l.id }),
       staleTime: 1800_000,
       retry: 1,
+      refetchOnWindowFocus: false,
     })),
   });
-  const loading = tables.some((t: any) => t.isLoading);
-  const rows: any[] = [];
-  tables.forEach((t: any, i: number) => {
-    for (const r of t.data?.[0]?.rows ?? []) {
-      if (!r.matches) continue;
+
+  if (tables.some((t) => t.isPending)) {
+    return <p className="text-sm text-muted-foreground">Räknar ut formen i Europas ligor…</p>;
+  }
+
+  const retry = () => {
+    for (const t of tables) if (t.isError) t.refetch();
+  };
+
+  const rows: {
+    clubId: string;
+    club: string;
+    league: string;
+    matches: number;
+    w: number;
+    d: number;
+    l: number;
+    gf: number;
+    ga: number;
+    ppg: number;
+    gd: number;
+  }[] = [];
+  const missing: string[] = [];
+  tables.forEach((t, i) => {
+    const league = LEAGUES[i]!;
+    const table = t.data?.[0]?.rows;
+    if (!table || table.length === 0) {
+      missing.push(league.name);
+      return;
+    }
+    for (const r of table) {
+      if (r.matches < MIN_MATCHES) continue;
       rows.push({
+        clubId: r.clubId,
         club: r.clubName,
-        league: FORM_LEAGUES[i]!.name,
+        league: league.name,
         matches: r.matches,
         w: r.wins,
         d: r.draws,
@@ -215,35 +242,58 @@ function FormList() {
       });
     }
   });
-  if (loading)
-    return <p className="text-sm text-muted-foreground">Räknar ut formen i Europas ligor…</p>;
+
+  if (rows.length === 0) {
+    return (
+      <RankingError
+        message="Formtabellen gick inte att hämta från Transfermarkt just nu."
+        onRetry={retry}
+      />
+    );
+  }
+
   const top = rows.sort((a, b) => b.ppg - a.ppg || b.gd - a.gd).slice(0, 5);
   return (
     <>
       <ol className="divide-y">
         {top.map((r, i) => (
-          <li key={r.club} className="flex items-center gap-4 py-3">
-            <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">
-              {i + 1}
-            </span>
-            <span className="flex-1">
-              <span className="block font-display text-lg font-bold">{r.club}</span>
-              <span className="text-xs text-muted-foreground">
-                {r.league} · {r.w}V-{r.d}O-{r.l}F på {r.matches} matcher
+          <li key={`${r.league}-${r.clubId}`}>
+            <Link
+              to="/lag/$id"
+              params={{ id: r.clubId }}
+              className="flex items-center gap-4 py-3 hover:text-primary"
+            >
+              <span className="w-6 font-display text-xl font-extrabold text-muted-foreground">
+                {i + 1}
               </span>
-            </span>
-            <span className="text-right">
-              <span className="block font-display text-lg font-extrabold text-primary">
-                {r.gf}–{r.ga}
+              <span className="flex-1">
+                <span className="block font-display text-lg font-bold">{r.club}</span>
+                <span className="text-xs text-muted-foreground">
+                  {r.league} · {r.w}V-{r.d}O-{r.l}F på {r.matches} matcher
+                </span>
               </span>
-              <span className="text-xs text-muted-foreground">gjorda–insläppta</span>
-            </span>
+              <span className="text-right">
+                <span className="block font-display text-lg font-extrabold text-primary">
+                  {r.gf}–{r.ga}
+                </span>
+                <span className="text-xs text-muted-foreground">gjorda–insläppta</span>
+              </span>
+            </Link>
           </li>
         ))}
       </ol>
       <p className="mt-3 text-xs text-muted-foreground">
-        Baseras på poäng per match och målskillnad i respektive liga, uppdateras löpande från
-        Transfermarkt.
+        Baseras på poäng per match och målskillnad i {LEAGUES.length - missing.length} ligor (minst{" "}
+        {MIN_MATCHES} spelade matcher), hämtat från Transfermarkts tabeller.
+        {missing.length > 0 && (
+          <>
+            {" "}
+            Saknar just nu: {missing.join(", ")}.{" "}
+            <button className="underline" onClick={retry}>
+              Försök igen
+            </button>
+          </>
+        )}
       </p>
     </>
   );

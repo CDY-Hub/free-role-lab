@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
+  parseCompetitionTable,
   parseValuableClubs,
   parseValuablePlayers,
   parseClubs,
@@ -14,6 +15,7 @@ import {
   type TmCoachHit,
   type TmPlayerHit,
   type TmRankedPlayer,
+  type TmTableRow,
   type TmValuableClub,
 } from "./tm-parse";
 import { Breaker, Gate, Inflight, TtlCache, fetchWithTimeout } from "./tm-net";
@@ -23,6 +25,7 @@ export type {
   TmCoachHit,
   TmPlayerHit,
   TmRankedPlayer,
+  TmTableRow,
   TmValuableClub,
 } from "./tm-parse";
 
@@ -44,6 +47,9 @@ const inflight = new Inflight();
 const tmBreaker = new Breaker();
 const apiBreaker = new Breaker();
 const apiGate = new Gate(450); // API-tjänsten stryper vid ~2 anrop/3 s
+// Startsidan frågar efter åtta ligatabeller samtidigt. Glesa ut starterna så att Transfermarkt
+// inte ser en skur (och svarar 429/403, vilket stänger säkringen för alla andra anrop).
+const listGate = new Gate(300);
 
 function getCached<T>(key: string): T | null {
   return cache.get<T>(key) ?? null;
@@ -349,15 +355,19 @@ const RANKING_TTL = 60 * 60_000;
 
 // Senast lyckade lista sparas längre, så att en tillfällig Transfermarkt-strypning visar
 // gårdagens lista hellre än ett felmeddelande.
-const lastGoodRankings = new TtlCache(20, 4 * 1024 * 1024);
+const lastGoodRankings = new TtlCache(64, 4 * 1024 * 1024);
 
-async function cachedRanking<T>(key: string, load: () => Promise<T>): Promise<T> {
+async function cachedRanking<T>(
+  key: string,
+  load: () => Promise<T>,
+  ttlMs = RANKING_TTL,
+): Promise<T> {
   const hit = getCached<T>(key);
   if (hit) return hit;
   return inflight.run(key, async () => {
     try {
       const value = await load();
-      setCache(key, value, RANKING_TTL);
+      setCache(key, value, ttlMs);
       lastGoodRankings.set(key, value, 24 * 3_600_000);
       return value;
     } catch (e) {
@@ -368,11 +378,32 @@ async function cachedRanking<T>(key: string, load: () => Promise<T>): Promise<T>
   });
 }
 
+/**
+ * Hämtar en sida och tolkar den. Transfermarkt svarar ibland med en felsida (status 200 men utan
+ * tabell). Då rensas den cachade sidan och hämtningen görs om en gång, så att felsidan inte blir
+ * kvar i cachen och förstör listan under hela cachetiden.
+ */
+async function fetchParsed<T>(
+  path: string,
+  ttlMs: number,
+  parse: (html: string) => T[],
+  minRows: number,
+): Promise<T[]> {
+  let rows: T[] = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await listGate.wait();
+    rows = parse(await tmFetch(path, ttlMs));
+    if (rows.length >= minRows) return rows;
+    cache.delete(`html:${path}`);
+    if (attempt === 0) await sleep(600);
+  }
+  return rows;
+}
+
 export const tmMostValuableClubs = createServerFn({ method: "GET" }).handler(
   async (): Promise<TmValuableClub[]> =>
     cachedRanking("rank:clubs", async () => {
-      const html = await tmFetch(CLUBS_PATH, RANKING_TTL);
-      const clubs = parseValuableClubs(html);
+      const clubs = await fetchParsed(CLUBS_PATH, RANKING_TTL, parseValuableClubs, 5);
       if (clubs.length < 5) {
         throw new Error("Kunde inte läsa Transfermarkts lista över mest värda klubbar.");
       }
@@ -385,19 +416,20 @@ const rankingScope = (d: unknown): "world" | "sweden" => {
   throw new Error("Ogiltig lista");
 };
 
+async function loadValuablePlayers(scope: "world" | "sweden"): Promise<TmRankedPlayer[]> {
+  return cachedRanking(`rank:players:${scope}`, async () => {
+    const path = scope === "sweden" ? `${PLAYERS_PATH}?land_id=${SWEDEN_LAND_ID}` : PLAYERS_PATH;
+    const players = await fetchParsed(path, RANKING_TTL, parseValuablePlayers, 5);
+    if (players.length < 5) {
+      throw new Error("Kunde inte läsa Transfermarkts lista över dyraste spelare.");
+    }
+    return players.slice(0, 25);
+  });
+}
+
 export const tmMostValuablePlayers = createServerFn({ method: "GET" })
   .inputValidator(rankingScope)
-  .handler(async ({ data }: { data: "world" | "sweden" }): Promise<TmRankedPlayer[]> =>
-    cachedRanking(`rank:players:${data}`, async () => {
-      const path = data === "sweden" ? `${PLAYERS_PATH}?land_id=${SWEDEN_LAND_ID}` : PLAYERS_PATH;
-      const html = await tmFetch(path, RANKING_TTL);
-      const players = parseValuablePlayers(html);
-      if (players.length < 5) {
-        throw new Error("Kunde inte läsa Transfermarkts lista över dyraste spelare.");
-      }
-      return players.slice(0, 25);
-    }),
-  );
+  .handler(({ data }: { data: "world" | "sweden" }) => loadValuablePlayers(data));
 
 // ─── Lagets trupp ──────────────────────────────────────────────────────────────
 export const tmClubSquad = createServerFn({ method: "GET" })
@@ -761,59 +793,69 @@ async function tmApiJson<T = any>(path: string, ttlMs = 3_600_000): Promise<T> {
   });
 }
 
+// ─── Ligatabell och ligans dyraste spelare (direkt från Transfermarkt) ──────────────────
+// Den inofficiella API-tjänsten (fly.dev) svarar 403, så sidorna läses och tolkas här.
+const TABLE_TTL = 30 * 60_000;
+
+export type TmLeagueTable = { rows: TmTableRow[] };
+
+async function loadCompetitionTable(competition: string): Promise<TmLeagueTable[]> {
+  return cachedRanking(
+    `table:${competition}`,
+    async () => {
+      const path = `/-/tabelle/wettbewerb/${competition}`;
+      const rows = await fetchParsed(path, TABLE_TTL, parseCompetitionTable, 4);
+      if (rows.length < 4) throw new Error("Kunde inte läsa tabellen från Transfermarkt.");
+      return [{ rows }];
+    },
+    TABLE_TTL,
+  );
+}
+
 export const tmCompetitionTable = createServerFn({ method: "GET" })
   .inputValidator(comp)
-  .handler(async ({ data }: { data: string }) => {
-    try {
-      const body: any = await tmApiJson(`/competitions/${data}/table`);
-      return body.tables ?? [];
-    } catch {
-      return [];
-    }
-  });
+  .handler(({ data }: { data: string }) => loadCompetitionTable(data));
 
-export const tmCompetitionClubs = createServerFn({ method: "GET" })
-  .inputValidator(comp)
-  .handler(async ({ data }: { data: string }) => {
-    try {
-      const body: any = await tmApiJson(`/competitions/${data}/clubs`);
-      return body.clubs ?? [];
-    } catch {
-      return [];
+export type TmLeagueTopPlayer = {
+  id: string;
+  name: string;
+  imageUrl?: string | undefined;
+  age?: number | undefined;
+  position?: string | undefined;
+  marketValue?: number | undefined;
+  nationality?: string | undefined;
+  club?: string | undefined;
+};
+
+async function loadLeagueTopValues(competition: string): Promise<TmLeagueTopPlayer[]> {
+  return cachedRanking(`league-values:${competition}`, async () => {
+    const path = `/-/marktwerte/wettbewerb/${competition}`;
+    const players = await fetchParsed(path, RANKING_TTL, parseValuablePlayers, 5);
+    if (players.length < 5) {
+      throw new Error("Kunde inte läsa ligans marknadsvärden från Transfermarkt.");
     }
+    // Sidan är redan sorterad på värde. Sorteringen här är stabil, så delade värden behåller
+    // Transfermarkts ordning.
+    return players
+      .filter((p) => p.marketValue != null)
+      .sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0))
+      .slice(0, 5)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        imageUrl: p.imageUrl,
+        age: p.age,
+        position: p.position,
+        marketValue: p.marketValue,
+        nationality: p.nationalities?.[0],
+        club: p.club?.name,
+      }));
   });
+}
 
 export const tmLeagueTopValues = createServerFn({ method: "GET" })
   .inputValidator(comp)
-  .handler(async ({ data }: { data: string }) => {
-    try {
-      const clubs: { id: string; name: string }[] =
-        (await tmApiJson<any>(`/competitions/${data}/clubs`)).clubs ?? [];
-      const players = await pool(clubs, async (c) => {
-        try {
-          const body = await tmApiJson<any>(`/clubs/${c.id}/players`);
-          return (body.players ?? []).map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            imageUrl: p.imageUrl,
-            age: p.age,
-            position: asPosition(p.position),
-            marketValue: p.marketValue,
-            nationality: Array.isArray(p.nationality) ? p.nationality[0] : p.nationality,
-            club: c.name,
-          }));
-        } catch {
-          return null;
-        }
-      });
-      return players
-        .flat()
-        .sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0))
-        .slice(0, 5);
-    } catch {
-      return [];
-    }
-  });
+  .handler(({ data }: { data: string }) => loadLeagueTopValues(data));
 
 export const tmPlayerMatchesSeason = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => {

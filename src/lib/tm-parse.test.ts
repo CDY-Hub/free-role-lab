@@ -3,6 +3,7 @@ import {
   parseClubHeader,
   parseClubs,
   parseCoaches,
+  parseCompetitionTable,
   parseMarketValue,
   parsePlayers,
   parseProfileHeader,
@@ -407,6 +408,104 @@ ${row("even", 4, "michael-olise", 735136, "Michael Olise", "Right Winger", 24, 5
   it("ignores the sidebar and returns nothing for an empty page", () => {
     expect(parseValuablePlayers(html).some((p) => p.id === "9999")).toBe(false);
     expect(parseValuablePlayers("")).toEqual([]);
+  });
+});
+
+// Rader ur Allsvenskans marknadsvärdessida (marktwerte/wettbewerb/SE1), hämtade från Transfermarkt.
+// Porträttet ligger i data-src (src är en 1x1-platshållare) och flaggan står före åldern.
+describe("parseValuablePlayers on a league page", () => {
+  const html = `<table class="items"><thead><tr><th>#</th><th>Player</th></tr></thead><tbody><tr class="odd"><td class="zentriert">1</td><td><table class="inline-table"><tbody><tr><td rowspan="2"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAMLCwgAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==" data-src="https://img.a.transfermarkt.technology/portrait/medium/1018035-1763584237.jpg?lm=4711" title="Matias Siltanen" alt="Matias Siltanen" class="bilderrahmen-fixed lazy lazy"></td><td class="hauptlink"><a title="Matias Siltanen" href="/matias-siltanen/profil/spieler/1018035">Matias Siltanen</a></td></tr><tr><td>Central Midfield</td></tr></tbody></table></td><td class="zentriert"><img src="https://img.a.transfermarkt.technology/flagge/verysmall/49.png?lm=1791356388" title="Finland" alt="Finland" class="flaggenrahmen"></td><td class="zentriert">19</td><td class="zentriert"><a title="Djurgårdens IF" href="/djurgardens-if/startseite/verein/1044/saison_id/2025"><img src="https://img.a.transfermarkt.technology/wappen/verysmall/1044.png?lm=1789459228" title="Djurgårdens IF" alt="Djurgårdens IF" class=""></a></td><td class="rechts hauptlink"><a href="/matias-siltanen/marktwertverlauf/spieler/1018035">€10M</a>&nbsp;</td></tr><tr class="even"><td class="zentriert">2</td><td><table class="inline-table"><tbody><tr><td rowspan="2"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAMLCwgAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==" data-src="https://img.a.transfermarkt.technology/portrait/medium/1172431-1763379437.jpg?lm=4711" title="Kevin Filling" alt="Kevin Filling" class="bilderrahmen-fixed lazy lazy"></td><td class="hauptlink"><a title="Kevin Filling" href="/kevin-filling/profil/spieler/1172431">Kevin Filling</a></td></tr><tr><td>Centre-Forward</td></tr></tbody></table></td><td class="zentriert"><img src="https://img.a.transfermarkt.technology/flagge/verysmall/147.png?lm=1791356395" title="Sweden" alt="Sweden" class="flaggenrahmen"><br><img src="https://img.a.transfermarkt.technology/flagge/verysmall/149.png?lm=1791356395" title="Senegal" alt="Senegal" class="flaggenrahmen"></td><td class="zentriert">17</td><td class="zentriert"><a title="AIK" href="/aik-solna/startseite/verein/272/saison_id/2025"><img src="https://img.a.transfermarkt.technology/wappen/verysmall/272.png?lm=1789459183" title="AIK" alt="AIK" class=""></a></td><td class="rechts hauptlink"><a href="/kevin-filling/marktwertverlauf/spieler/1172431">€7.0M</a>&nbsp;</td></tr></tbody></table>`;
+
+  it("reads both rows with value, position, age, club and every nationality", () => {
+    const [siltanen, filling] = parseValuablePlayers(html);
+    expect(siltanen).toMatchObject({
+      rank: 1,
+      id: "1018035",
+      name: "Matias Siltanen",
+      position: "Central Midfield",
+      age: 19,
+      marketValue: 10_000_000,
+      club: { id: "1044", name: "Djurgårdens IF" },
+      nationalities: ["Finland"],
+    });
+    expect(filling).toMatchObject({
+      rank: 2,
+      id: "1172431",
+      position: "Centre-Forward",
+      age: 17,
+      marketValue: 7_000_000,
+      club: { id: "272", name: "AIK" },
+      nationalities: ["Sweden", "Senegal"],
+    });
+  });
+
+  it("uses the lazy-loaded portrait, not the transparent placeholder", () => {
+    const [siltanen] = parseValuablePlayers(html);
+    expect(siltanen?.imageUrl).toBe(
+      "https://img.a.transfermarkt.technology/portrait/header/1018035-1763584237.jpg?lm=4711",
+    );
+  });
+});
+
+// Rader ur Allsvenskans tabell (tabelle/wettbewerb/SE1), hämtade från Transfermarkt. Klubbcellen
+// för serieettan har bara namnet; regerande mästare har dessutom en pokallänk efter namnet.
+describe("parseCompetitionTable", () => {
+  const SIRIUS = `<tr>
+<td class="rechts hauptlink" style='background-color: #afd179'>1 <span title="previous week 1.place" class="icons_sprite grey-block-ten">&nbsp;</span></td><td class="zentriert no-border-rechts"><a title="IK Sirius" href="/ik-sirius/spielplan/verein/7945/saison_id/2025"><img src="https://img.a.transfermarkt.technology/wappen/small/7945.png?lm=1789459578" title="IK Sirius" alt="IK Sirius" class="" /></a></td>
+        <td class="no-border-links hauptlink">
+            <a title="IK Sirius" href="/ik-sirius/spielplan/verein/7945/saison_id/2025">Sirius</a>
+        </td><td class="zentriert">25</td><td class="zentriert grid-col-extended">17</td><td class="zentriert grid-col-extended">4</td><td class="zentriert grid-col-extended">4</td><td class="zentriert grid-col-extended">56:32</td><td class="zentriert">24</td><td class="zentriert">55</td></tr>`;
+  const GAIS = `<tr> <td class="rechts hauptlink">11 <span title="previous week 11.place" class="icons_sprite grey-block-ten">&nbsp;</span></td><td class="zentriert no-border-rechts"><a title="GAIS" href="/gais-goteborg/spielplan/verein/7009/saison_id/2025"><img src="https://img.a.transfermarkt.technology/wappen/small/7009.png?lm=1789459525" title="GAIS" alt="GAIS" class=""></a></td> <td class="no-border-links hauptlink"> <a title="GAIS" href="/gais-goteborg/spielplan/verein/7009/saison_id/2025">GAIS</a> </td><td class="zentriert">25</td><td class="zentriert grid-col-extended">8</td><td class="zentriert grid-col-extended">7</td><td class="zentriert grid-col-extended">10</td><td class="zentriert grid-col-extended">31:26</td><td class="zentriert">5</td><td class="zentriert">31</td></tr>`;
+  const MJALLBY = `<tr> <td class="rechts hauptlink">12 <span title="previous week 12.place" class="icons_sprite grey-block-ten">&nbsp;</span></td><td class="zentriert no-border-rechts"><a title="Mjällby AIF" href="/mjallby-aif/spielplan/verein/2719/saison_id/2025"><img src="https://img.a.transfermarkt.technology/wappen/small/2719.png?lm=1789459312" title="Mjällby AIF" alt="Mjällby AIF" class=""></a></td> <td class="no-border-links hauptlink"> <a title="Mjällby AIF" href="/mjallby-aif/spielplan/verein/2719/saison_id/2025">Mjällby</a><a href="#"><img src="https://img.a.transfermarkt.technology/erfolge/mini/121.png?lm=1791356686" title="Swedish Champion 2025" alt="Swedish Champion 2025" class="tabelle-erfolg"></a> </td><td class="zentriert">25</td><td class="zentriert grid-col-extended">5</td><td class="zentriert grid-col-extended">8</td><td class="zentriert grid-col-extended">12</td><td class="zentriert grid-col-extended">28:42</td><td class="zentriert">-14</td><td class="zentriert">23</td></tr>`;
+
+  const page = (...rows: string[]) =>
+    `<div class="box"><table class="items"><thead><tr><th>#</th><th colspan="2">Club</th><th>M</th><th>W</th><th>D</th><th>L</th><th>Goals</th><th>+/-</th><th>Pts</th></tr></thead><tbody>${rows.join("\n")}</tbody></table></div>`;
+
+  it("reads placement, club, record, goals and points in page order", () => {
+    const rows = parseCompetitionTable(page(SIRIUS, GAIS, MJALLBY));
+    expect(rows.map((r) => r.position)).toEqual([1, 11, 12]);
+    expect(rows[0]).toEqual({
+      position: 1,
+      clubId: "7945",
+      clubName: "Sirius",
+      matches: 25,
+      wins: 17,
+      draws: 4,
+      losses: 4,
+      goalsFor: 56,
+      goalsAgainst: 32,
+      points: 55,
+    });
+    expect(rows[1]).toMatchObject({ clubName: "GAIS", wins: 8, draws: 7, losses: 10, points: 31 });
+  });
+
+  it("takes the club name before the trophy link and survives a negative goal difference", () => {
+    const [mjallby] = parseCompetitionTable(page(MJALLBY));
+    expect(mjallby).toMatchObject({
+      clubId: "2719",
+      clubName: "Mjällby",
+      goalsFor: 28,
+      goalsAgainst: 42,
+      points: 23,
+    });
+  });
+
+  it("skips rows whose wins, draws and losses do not add up to the matches played", () => {
+    const broken = SIRIUS.replace('grid-col-extended">17<', 'grid-col-extended">18<');
+    expect(parseCompetitionTable(page(broken, GAIS)).map((r) => r.clubName)).toEqual(["GAIS"]);
+  });
+
+  it("de-duplicates clubs and ignores tables after the standings", () => {
+    const html = `${page(SIRIUS, SIRIUS)}<table class="items"><tbody>${GAIS}</tbody></table>`;
+    expect(parseCompetitionTable(html).map((r) => r.clubName)).toEqual(["Sirius"]);
+  });
+
+  it("returns nothing for an error page or an empty table", () => {
+    expect(parseCompetitionTable("")).toEqual([]);
+    expect(
+      parseCompetitionTable("<html><body><h1>Something went wrong</h1></body></html>"),
+    ).toEqual([]);
+    expect(parseCompetitionTable(page())).toEqual([]);
   });
 });
 
