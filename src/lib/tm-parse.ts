@@ -376,6 +376,92 @@ export function parseValuablePlayers(html: string): TmRankedPlayer[] {
   });
 }
 
+export type TmTableRow = {
+  position: number;
+  clubId: string;
+  clubName: string;
+  matches: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  points: number;
+};
+
+/** Heltal ur en tabellcell. Tomma celler och text ger NaN i stället för 0. */
+const toInt = (s: string | undefined): number => {
+  const t = (s ?? "").trim();
+  return /^\d+$/.test(t) ? Number(t) : Number.NaN;
+};
+
+/**
+ * Transfermarkts ligatabell (/-/tabelle/wettbewerb/ID). En rad har placering, vapen, klubbnamn och
+ * sedan matcher, vinster, oavgjorda, förluster, "GM:IM", målskillnad och poäng. Klubbcellen kan ha
+ * fler länkar efter namnet (t.ex. en pokal för regerande mästare), så namnet tas från den första
+ * klubblänken som har text. Siffrorna hittas via målcellen "GM:IM" och inte via fasta kolumnplatser.
+ * Rader som inte går ihop (V+O+F skiljer sig från antal matcher) tas inte med.
+ */
+export function parseCompetitionTable(html: string): TmTableRow[] {
+  const scoped = fromItemsTable(html);
+  // Tabellen är platt, så första </table> är dess slut. Sidofält längre ned ska inte läsas.
+  const end = scoped.search(/<\/table>/i);
+  const rows = (end >= 0 ? scoped.slice(0, end) : scoped).split(/<tr\b/i).slice(1);
+
+  const clubRx =
+    /<a\b([^>]*)href="\/[^"/]+\/spielplan\/verein\/(\d+)[^"]*"([^>]*)>([\s\S]*?)<\/a>/gi;
+  const cellRx = /<td\b[^>]*class="[^"]*\bzentriert\b[^"]*"[^>]*>\s*([^<]*?)\s*<\/td>/gi;
+
+  const out: TmTableRow[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    let id: string | undefined;
+    let name: string | undefined;
+    clubRx.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = clubRx.exec(row)) !== null) {
+      const text = stripTags(m[4]!);
+      if (text) {
+        id = m[2]!;
+        name = text;
+        break;
+      }
+    }
+    if (!id || !name || seen.has(id)) continue;
+
+    const cells = [...row.matchAll(cellRx)].map((c) => decodeEntities(c[1]!));
+    const goalsAt = cells.findIndex((c) => /^\d+:\d+$/.test(c));
+    if (goalsAt < 4 || cells.length < goalsAt + 3) continue;
+    const [gf, ga] = cells[goalsAt]!.split(":");
+    const matches = toInt(cells[goalsAt - 4]);
+    const wins = toInt(cells[goalsAt - 3]);
+    const draws = toInt(cells[goalsAt - 2]);
+    const losses = toInt(cells[goalsAt - 1]);
+    const goalsFor = toInt(gf);
+    const goalsAgainst = toInt(ga);
+    const points = toInt(cells[goalsAt + 2]);
+    const all = [matches, wins, draws, losses, goalsFor, goalsAgainst, points];
+    if (all.some((n) => !Number.isFinite(n) || n < 0)) continue;
+    if (wins + draws + losses !== matches) continue;
+
+    const rank = /<td\b[^>]*class="[^"]*\brechts\b[^"]*"[^>]*>\s*(\d{1,3})\b/i.exec(row)?.[1];
+    seen.add(id);
+    out.push({
+      position: rank ? Number(rank) : out.length + 1,
+      clubId: id,
+      clubName: name,
+      matches,
+      wins,
+      draws,
+      losses,
+      goalsFor,
+      goalsAgainst,
+      points,
+    });
+  }
+  return out;
+}
+
 export function parseCoaches(html: string): TmCoachHit[] {
   const anchors = mainAnchors(html, COACH_KIND);
   return anchors.map((a) => ({

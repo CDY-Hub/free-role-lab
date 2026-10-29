@@ -132,14 +132,16 @@ function LeaguePage() {
                     <img
                       src={p.imageUrl}
                       alt=""
-                      className="size-12 rounded-full border object-cover"
+                      className="size-12 rounded-full border bg-muted object-cover object-top"
                       loading="lazy"
                     />
                   )}
                   <span className="flex-1">
                     <span className="block font-display text-lg font-bold">{p.name}</span>
                     <span className="text-xs text-muted-foreground">
-                      {p.position} · {p.club} · {p.age} år
+                      {[p.position, p.club, p.age ? `${p.age} år` : null]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </span>
                   <span className="font-display text-xl font-extrabold text-primary">
